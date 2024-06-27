@@ -27,7 +27,7 @@ TMPDIR="$BUILDROOT/tmp"
 KMODTMP="$TMPDIR/modules"
 
 # package data
-PKGNAME="linuxmuster-linbo7"
+PKGNAME="linuxmuster-cachingserver-linbo7"
 PKGBUILDROOT="$DEBIAN/$PKGNAME"
 PKGVARDIR="$PKGBUILDROOT/var/lib/linuxmuster/linbo"
 
