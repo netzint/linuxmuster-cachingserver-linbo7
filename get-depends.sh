@@ -12,7 +12,7 @@ if [ -z "$SUDO" ]; then
   exit 1
 fi
 
-PKGNAME="linuxmuster-linbo7"
+PKGNAME="linuxmuster-cachingserver-linbo7"
 
 echo "###############################################"
 echo "# Installing $PKGNAME build depends #"
