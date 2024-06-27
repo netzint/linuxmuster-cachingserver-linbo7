@@ -7,7 +7,11 @@
 #
 
 # read build environment
-for item in build/conf.d/*; do source "$item" || exit 1; done
+echo "Read build environment..."
+for item in build/conf.d/*; do
+    echo "Try to read $item..."
+    source "$item" || exit 1
+done
 
 # iterate over kernelversions
 for kvers in ${KVERSARRAY[@]}; do
