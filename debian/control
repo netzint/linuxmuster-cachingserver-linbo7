@@ -1,7 +1,7 @@
-Source: linuxmuster-linbo7
+Source: linuxmuster-cachingserver-linbo7
 Section: admin
 Priority: extra
-Maintainer: Thomas Schmitt <thomas@linuxmuster.net>
+Maintainer: Lukas Spitznagel <lukas.spitznagel@netzint.de>
 Build-Depends: acl, argon2, bc, binutils, bison, build-essential, ctorrent,
   curl, debianutils, debhelper, dosfstools, dpkg-dev, dropbear-bin,
   gcc-multilib, e2fsprogs, efibootmgr, ethtool, fakeroot, flex, fonts-ubuntu,
@@ -13,17 +13,17 @@ Build-Depends: acl, argon2, bc, binutils, bison, build-essential, ctorrent,
   rsync, systemd, sysvinit-utils, tar, udev, udpcast, unzip, util-linux,
   uuid-dev, uuid-runtime, wget, wpasupplicant, zlib1g-dev, xz-utils
 
-Package: linuxmuster-linbo7
+Package: linuxmuster-cachingserver-linbo7
 Architecture: all
-Breaks: linuxmuster-linbo-common7
+Breaks: linuxmuster-linbo7
 Conflicts: atftpd, bittorrent, linuxmuster-linbo, linuxmuster-linbo-common,
-  linuxmuster-linbo-common7
+  linuxmuster-linbo7
 Depends: argon2, coreutils, ctorrent, dosfstools, dropbear-bin, grub-common,
   grub-efi-amd64-bin, grub-ipxe, grub-pc-bin, isolinux, libowfat0,
-  linux-firmware, linuxmuster-base7, linuxmuster-linbo-gui7, mbr, python3,
+  linux-firmware, linuxmuster-linbo-gui7, mbr, python3,
   qemu-utils, rsync, sed, ssh, syslinux-common, syslinux-utils,
   tftpd-hpa, tmux, udpcast, wakeonlan, xorriso, xz-utils, zip
 Suggests: isc-dhcp-server | dhcp3-server
-Description: linuxmuster-linbo7
+Description: linuxmuster-cachingserver-linbo7
   This package contains kernel, initrd, scripts and pxe boot configuration for
   the Linux-based Network Boot (LINBO) boot/install/repair system.
