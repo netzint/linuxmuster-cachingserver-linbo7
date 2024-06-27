@@ -6,7 +6,7 @@ on:
 
   workflow_dispatch:
 
-name: Build Release
+name: Build und publish release
 
 jobs:
   deb-package:

@@ -1,3 +1,13 @@
+linuxmuster-cachingserver-linbo7 (4.2.13-0) lmn72-testing; urgency=low
+
+  * kernel build fix (508105c).
+  * update stable kernel to 6.7.1 (717a3c1).
+  * update legacy kernel to 5.15.147 (45688d2).
+  * update longterm kernel to 6.1.74 (410d019).
+  * add restoremode kernel option to control the restore performance of qemu-img (5719b27).
+
+ -- Lukas Spitznagel <lukas.spitznagel@netzint.de>  Tue, 27 Jun 2024 11:39:52 +0100
+
 linuxmuster-linbo7 (4.2.13-0) lmn72; urgency=low
 
   * kernel build fix (508105c). 
