@@ -19,6 +19,9 @@ jobs:
       - name: Install dependencies
         run: sudo apt update && sudo apt install debhelper -y
 
+      - name: Install dependencies
+        run: ./get-depends.sh
+
       - name: Build
         run: ./buildpackage.sh
 
@@ -63,6 +66,7 @@ jobs:
           assets_path: .
 
   publish-release:
+    needs: github-release
     name: Publish latest release to package server
     runs-on: ubuntu-22.04
     steps:
