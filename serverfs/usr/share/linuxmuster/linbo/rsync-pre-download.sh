@@ -61,7 +61,17 @@ case $EXT in
       if [ -s "$imagemacct" ]; then
         echo "Machine account ldif file: $imagemacct"
         echo "Host: $compname"
-        # get dn of host
+
+        MACCTCONTENT=$(sed ':a;N;$!ba;s/\n/\\n/g' $imagemacct)
+
+        SERVERIP=$(cat /var/lib/linuxmuster-cachingserver/server.json | jq -r '.server_ip')
+        LDBRESULT=$(curl -s -X POST --header "Content-Type: application/json" -d '{"macct": "$MACCTCONTENT"}' "http://$SERVERIP:4456/v1/images/macct?computername=$RSYNC_HOST_NAME")
+        if [ "$(echo $LDBRESULT | jq -r '.status')" == "true" ]; then
+          echo "$LDBRESULT | jq -r '.data'"
+        else
+          echo "Cannot set unicodepwd for $compname!"
+        fi
+
         dn="$($LDBSEARCH "(&(sAMAccountName=$compname$))" | grep ^dn | awk '{ print $2 }')"
         if [ -n "$dn" ]; then
           echo "DN: $dn"

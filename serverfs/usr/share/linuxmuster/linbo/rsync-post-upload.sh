@@ -109,14 +109,16 @@ case "$EXT" in
     linbo-multicast restart >&2
 
     # save samba passwords of host we made the new image
-    LDBSEARCH="$(which ldbsearch)"
-    if [ -n "$RSYNC_HOST_NAME" -a -n "$LDBSEARCH" -a -n "$basedn" ]; then
+    if [ -n "$RSYNC_HOST_NAME" ]; then
       #  fetch samba nt password hash from ldap machine account
-      url="--url=/var/lib/samba/private/sam.ldb"
-      unicodepwd="$("$LDBSEARCH" "$url" "(&(sAMAccountName=$compname$))" unicodePwd | grep ^unicodePwd:: | awk '{ print $2 }')"
-      suppcredentials="$(ldbsearch "$url" "(&(sAMAccountName=$compname$))" supplementalCredentials | sed -n '/^'supplementalCredentials':/,/^$/ { /^'supplementalCredentials':/ { s/^'supplementalCredentials': *// ; h ; $ !d}; /^ / { H; $ !d}; /^ /! { x; s/\n //g; p; q}; $ { x; s/\n //g; p; q} }' | awk '{ print $2 }')"
-      if [ -n "$unicodepwd" ]; then
+      SERVERIP=$(cat /var/lib/linuxmuster-cachingserver/server.json | jq -r '.server_ip')
+      LDBRESULT=$(curl -s "http://$SERVERIP:4456/v1/images/macct?computername=$RSYNC_HOST_NAME")
+      if [ "$(echo $LDBRESULT | jq -r '.status')" == "true" ]; then
         echo "Writing samba password hash file for image $image."
+
+        unicodepwd="$(echo $LDBRESULT | jq -r '.data.unicodepwd')"
+        suppcredentials="$(echo $LDBRESULT | jq -r '.data.supplementalcredentials')"
+
         template="$LINBOTPLDIR/machineacct"
         imagemacct="$IMGDIR/${BASENAME}.macct"
         sed -e "s|@@unicodepwd@@|$unicodepwd|" -e "s|@@suppcredentials@@|$suppcredentials|" "$template" > "$imagemacct"

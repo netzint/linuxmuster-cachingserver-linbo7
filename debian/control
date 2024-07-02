@@ -19,7 +19,7 @@ Breaks: linuxmuster-linbo7
 Conflicts: atftpd, bittorrent, linuxmuster-linbo, linuxmuster-linbo-common,
   linuxmuster-linbo7
 Depends: argon2, coreutils, ctorrent, dosfstools, dropbear-bin, grub-common,
-  grub-efi-amd64-bin, grub-ipxe, grub-pc-bin, isolinux, libowfat0,
+  grub-efi-amd64-bin, grub-ipxe, grub-pc-bin, isolinux, libowfat0, jq,
   linux-firmware, linuxmuster-linbo-gui7, mbr, python3,
   qemu-utils, rsync, sed, ssh, syslinux-common, syslinux-utils,
   tftpd-hpa, tmux, udpcast, wakeonlan, xorriso, xz-utils, zip

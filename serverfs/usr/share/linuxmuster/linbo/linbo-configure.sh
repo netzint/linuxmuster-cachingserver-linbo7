@@ -113,6 +113,18 @@ if grep -q "$lmn71_string" "$conf"; then
   sed -i "s|$lmn71_string|$lmn72_string|" "$conf"
 fi
 
+# provide rsyncd.secret file
+if [ ! -f /etc/rsyncd.secrets ]; then
+  printf "# modified by linuxmuster-cachingserver-linbo7\n\nlinbo:Muster!" > /etc/rsyncd.secrets
+  systemctl restart rsync.service
+fi
+
+# provide rsyncd.conf
+if [ ! -f /etc/rsyncd.conf ]; then
+  sed "s/@@linbodir@@/\/srv\/linbo/g" /usr/share/linuxmuster/templates/rsyncd.conf > /etc/rsyncd.conf
+  systemctl restart rsync.service
+fi
+
 # provide rsync service override
 tpl="$TPLDIR/rsync.override.conf"
 conf="$(head -1 "$tpl" | awk '{print $2}')"
