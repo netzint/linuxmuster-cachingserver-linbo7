@@ -65,7 +65,7 @@ case $EXT in
         MACCTCONTENT=$(sed ':a;N;$!ba;s/\n/\\n/g' $imagemacct)
 
         SERVERIP=$(cat /var/lib/linuxmuster-cachingserver/server.json | jq -r '.server_ip')
-        LDBRESULT=$(curl -s -X POST --header "Content-Type: application/json" -d '{"macct": "$MACCTCONTENT"}' "http://$SERVERIP:4456/v1/images/macct?computername=$RSYNC_HOST_NAME")
+        LDBRESULT=$(curl -s -X POST --header "Content-Type: application/json" -d "{\"macct\": \"$MACCTCONTENT\"}" "http://$SERVERIP:4456/v1/images/macct?computername=$RSYNC_HOST_NAME")
         if [ "$(echo $LDBRESULT | jq -r '.status')" == "true" ]; then
           echo "$LDBRESULT | jq -r '.data'"
         else

@@ -116,6 +116,7 @@ fi
 # provide rsyncd.secret file
 if [ ! -f /etc/rsyncd.secrets ]; then
   printf "# modified by linuxmuster-cachingserver-linbo7\n\nlinbo:Muster!" > /etc/rsyncd.secrets
+  chmod 600 /etc/rsyncd.secrets
   systemctl restart rsync.service
 fi
 
