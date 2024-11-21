@@ -1,3 +1,10 @@
+linuxmuster-cachingserver-linbo7 (4.2.15-0) lmn72-testing; urgency=low
+
+  * Merge changes from linuxmuster-linbo7
+  * Add NVRam-Fix to grub-install
+
+ -- Lukas Spitznagel <lukas.spitznagel@netzint.de>  Thu, 21 Nov 2024 10:05:52 +0100
+
 linuxmuster-cachingserver-linbo7 (4.2.14-2) lmn72-testing; urgency=low
 
   * Fix rsyncd.secret permissions and api call
