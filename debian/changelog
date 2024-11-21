@@ -25,6 +25,49 @@ linuxmuster-cachingserver-linbo7 (4.2.13-0) lmn72-testing; urgency=low
   * add restoremode kernel option to control the restore performance of qemu-img (5719b27).
 
  -- Lukas Spitznagel <lukas.spitznagel@netzint.de>  Tue, 27 Jun 2024 11:39:52 +0100
+linuxmuster-linbo7 (4.3.2-0) lmn72-testing; urgency=low
+
+  * add r8125 driver for Realtek 2.5G Ethernet adapter (ae4187e).
+  * fix module path for r8168 (72f3a8b).
+  * update longterm kernel to 6.1.111 (8c14f8f).
+  * update stable kernel to 6.10.11 (89f9eea).
+  * additionally log client's firmware info (d7e53c0).
+
+ -- Thomas Schmitt <thomas@linuxmuster.net>  Thu, 19 Sep 2024 19:17:26 +0200
+
+linuxmuster-linbo7 (4.3.1-0) lmn72-testing; urgency=low
+
+  *  add linbo-remote parameters for postsync and prestart scripts (#108).
+
+ -- Thomas Schmitt <thomas@linuxmuster.net>  Wed, 18 Sep 2024 17:10:12 +0200
+
+linuxmuster-linbo7 (4.3.0-0) lmn72-testing; urgency=low
+
+  * change release name to "Psycho Killer" (b317edd).
+  * add a framebuffer vncserver to the linbo client (#104).
+  * update legacy kernel to 5.15.167 (d4428cb).
+  * update longterm kernel to 6.1.110 (8d9cfd4).
+  * update stable kernel to 6.10.10 (d606c1c).
+  * add nopw option to linbo_vnc (10a40ef, #104).
+  * add hwinfo to linbo client (#117).
+  * fix scraping kernel versions (d773bb8).
+  * add rfkill to linbofs (5513eb3).
+  * update github package upload (d31ae19).
+  * improve linbo client logging (3b468fa...aab2b33, 1ef6c08, f5a9d1b).
+  * fix differential image creation (#119).
+  * linbo_size commands for disk and cache partition (#121).
+
+ -- Thomas Schmitt <thomas@linuxmuster.net>  Tue, 17 Sep 2024 13:09:58 +0200
+
+linuxmuster-linbo7 (4.2.14-0) lmn72; urgency=low
+
+  * Merge pull request #115 from hermanntoast/fix-kernel-build.
+  * Merge pull request #116 from hermanntoast/fix-linbo-offline-boot:    
+    Change offline check from linboserver to serverid
+  * Kernel updates: 5.15.162, 6.1.98 & 6.9.9 (5aace74, 734a711).
+
+ -- Thomas Schmitt <thomas@linuxmuster.net>  Sat, 13 Jul 2024 11:53:24 +0200
+
 
 linuxmuster-linbo7 (4.2.13-0) lmn72; urgency=low
 

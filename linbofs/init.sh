@@ -5,7 +5,7 @@
 # License: GPL V2
 #
 # thomas@linuxmuster.net
-# 20231207
+# 20241003
 #
 
 # If you don't have a "standalone shell" busybox, enable this:
@@ -128,7 +128,7 @@ do_env(){
     echo "export LINBOSERVER='"${SERVERID}"'" >> /.env
     export LINBOSERVER="${SERVERID}"
   fi
-  if [ -n "$LINBOSERVER" ]; then
+  if [ -n "$SERVERID" ]; then
     # add fqdn to environment
     echo "export FQDN='"${HOSTNAME}.${DOMAIN}"'" >> /.env
     export FQDN="${HOSTNAME}.${DOMAIN}"
@@ -157,6 +157,7 @@ init_setup(){
   echo 0 >/proc/sys/kernel/printk
   mount -t sysfs /sys /sys
   mount -t devtmpfs devtmpfs /dev
+  ln -s /proc/self/fd /dev/fd
   if [ -e /etc/udev/links.conf ]; then
     udev_extra_nodes
   fi
@@ -272,7 +273,7 @@ save_winact(){
   # if no activation return
   [ -z "$win_activated" -a -z "$office_activated" ] && return
   # get local mac address
-  local mac="$(linbo_cmd mac | tr a-z A-Z)"
+  local mac="$(linbo_mac | tr a-z A-Z)"
   # do not save if no mac address is available
   if [ -z "$mac" -o "$mac" = "OFFLINE" ]; then
     echo "Cannot determine mac address."
@@ -530,7 +531,7 @@ network(){
 # HW Detection
 hwsetup(){
   rm -f /tmp/linbo-cache.done
-  echo "## Hardware setup - begin ##" >> /tmp/linbo.log
+  #echo "## Hardware setup - begin ##" >> /tmp/linbo.log
 
   #
   # Udev starten
@@ -550,10 +551,11 @@ hwsetup(){
 
   export TERM_TYPE=pts
 
-  dmesg >> /tmp/linbo.log
-  echo "## Hardware setup - end ##" >> /tmp/linbo.log
+  #dmesg >> /tmp/linbo.log
+  #echo "## Hardware setup - end ##" >> /tmp/linbo.log
+  hwinfo | gzip -c > /tmp/hwinfo.gz
 
-  sleep 2
+  #sleep 2
   touch /tmp/linbo-cache.done
 }
 
@@ -569,11 +571,11 @@ echo
 echo "Initializing hardware ..."
 echo
 if [ -n "$quiet" ]; then
-  init_setup &> /dev/null
-  hwsetup &> /dev/null
+  init_setup 2>&1 >> /tmp/linbo.log
+  hwsetup 2>&1 >> /tmp/linbo.log
 else
-  init_setup
-  hwsetup
+  init_setup | tee -a /tmp/linbo.log
+  hwsetup | tee -a /tmp/linbo.log
 fi
 
 # start plymouth boot splash daemon
@@ -584,7 +586,7 @@ if grep -qiw splash /proc/cmdline; then
 fi
 
 # do network setup
-network
+network | tee -a /tmp/linbo.log
 
 # execute linbo commands given on commandline
 if [ -n "$linbocmd" ]; then
@@ -598,6 +600,7 @@ if [ -n "$linbocmd" ]; then
       msg="linbo_wrapper $cmd"
     fi
     print_status "$msg"
+    echo "$msg" >> /tmp/linbo.log
     /usr/bin/linbo_wrapper "$cmd" | while read line; do
       line="${line/---/}"
       print_status "$line"

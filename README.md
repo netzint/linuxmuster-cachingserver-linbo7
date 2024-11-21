@@ -6,7 +6,7 @@
  is the free and opensource imaging solution for linuxmuster.net 7. It handles Windows 10 (TM) and Linux 64bit operating systems. Via TFTP and Grub's PXE implementation it boots a small linux system (linbofs) with a [gui](https://github.com/linuxmuster/linuxmuster-linbo-gui), which can manage all the imaging tasks on the client. Console tools are also available to manage clients and imaging remotely via the server.
 
  ## Features
- * Kernel 6.1.*.
+ * Different kernel versions available (5.15.\*, 6.1.\* & 6.9.\*).
  * qcow2 image format.
  * Differential images.
  * Complete [refactoring of linbo_cmd](https://github.com/linuxmuster/linuxmuster-linbo7/issues/72).
@@ -89,6 +89,7 @@ Parameter  |  Description
 `nogui`  |  Does not start linbo_gui (for debugging purposes), console only mode.
 `nowarmstart`  |  Suppresses linbo warmstart after downloading a new linbo kernel from the server (in case warmstart causes problems). Note: The old parameter `warmstart=no` is still functional for compatibility reasons.
 `restoremode`  |  Allows to control the writing performance of qemu-img when restoring whole partitions according to certain storage hardware. `restoremode=dd` uses the dd mode of qemu-img and may improve the writing performance to certain nvme disks. `restoremode=ooo` uses the out-of-order mode of qemu-img. This option may improve performance with other raw block devices.
+`vncserver`  |  Starts the LINBO builtin framebuffer vnc server on boot. The service listens on port 9999 and allows access only from the linuxmuster server ip. So if you want to access the vnc server from your pc or laptop you have to create a ssh tunnel (`ssh -L 9999:<linbo client lan address>:9999 root@<serverip>`). Then you are able to access the LINBO gui with a vncviewer (`vncviewer localhost:9999`).
 
 ## Improved LINBO server scripts
 
@@ -153,9 +154,11 @@ initcache:<dltype>       : Updates local cache. <dltype> is one of
                            If dltype is not specified it is read from
                            start.conf.
 sync:<#>                 : Syncs the operating system on position nr <#>.
+postsync:<#>             : Invokes postsync script of the os on position nr <#>.
 new:<#>                  : Clean sync of the operating system on position nr <#>
                            (formats the according partition before).
 start:<#>                : Starts the operating system on pos. nr <#>.
+prestart:<#>             : Invokes prestart script of the os on position nr <#>.
 create_image:<#>:<"msg"> : Creates a full image from operating system nr <#>.
 upload_image:<#>         : Uploads a full image from operating system nr <#>.
 create_qdiff:<#>:<"msg"> : Creates a differential image from operating system nr <#>.
@@ -215,6 +218,17 @@ Note:
   ```
 * To watch the output of a multicast tmux session you have to follow its logfile:  
   `tail -f /var/log/linuxmuster/linbo/ubuntu2004_qdiff_mcast.log`
+
+### update-linbofs
+ * Recreates the Linbo filesystem and integrates various system specific customizations:
+   * the linbo password hash (password taken from `/etc/rsyncd.secrets`),
+   * the ssh public key of the server's root user,
+   * the kernel defined in `/etc/linuxmuster/linbo/custom_kernel` (see [Integrate your own kernel](https://github.com/linuxmuster/linuxmuster-linbo7/blob/main/README.md#integrate-your-own-kernel)),
+   * firmware defined in `/etc/linuxmuster/linbo/firmware` (see [Adding firmware](https://github.com/linuxmuster/linuxmuster-linbo7/blob/main/README.md#adding-firmware)),
+   * your own Linbo boot scripts (see [Execute your own boot scripts](https://github.com/linuxmuster/linuxmuster-linbo7#execute-your-own-boot-scripts)),
+   * your own linbofs modifications (see [Customize the Linbo filesystem](https://github.com/linuxmuster/linuxmuster-linbo7#customize-the-linbo-filesystem)).
+ * Creates an ISO file under `/srv/linbo/linbo.iso` that allows you to create a bootable Linbo USB stick.
+ * Allows to trigger custom actions on the server after `update-linbofs` has done it's job. Therefore you place a corresponding script in the directory `/var/lib/linuxmuster/hooks/update-linbofs.post.d`. Don't forget to make the script executable.
 
 ## Improved LINBO client shell
 
@@ -379,6 +393,18 @@ Perform the following 4 steps to execute your own boot script during the linbo-c
     ```
     The content of this file will be appended to the inittab in the linbo filesystem by `update-linbofs`. In the example the init process will wait until the script has been completed. For more information about inittab see https://manpages.debian.org/unstable/sysvinit-core/inittab.5.en.html.  
 4. Apply your changes to the linbo filesystem by executing `update-linbofs`.
+
+## Customize the Linbo filesystem
+In reference to the section before you are able to customize the Linbo filesystem according to your needs by placing a corresponding script in the directory `/var/lib/linuxmuster/hooks/update-linbofs.pre.d`. For example you want to place a file `r8125.conf` in the directory `/etc/modprobe.d` on the Linbo filesystem. Therefore your customize script should contain something like:
+```
+#!/bin/sh
+
+# path relative to linbofs root directory
+mkdir -p etc/modprobe.d
+
+# copy your file
+cp /root/r8125.conf etc/modprobe.d
+```
 
 ## Integrate your own kernel
 From Linbo version 4.2.4 you can integrate an alternative kernel into the Linbo file system. Simply create a file under `/etc/linuxmuster/linbo/custom_kernel` and define the paths to the kernel image and the modules directory:
