@@ -2,11 +2,12 @@
 #
 # linbo_vnc
 # thomas@linuxmuster.net
-# 20240715
+# 20250924
 #
 
 # get environment
 source /usr/share/linbo/shell_functions
+echo "### $timestamp $(basename "$0") ###"
 
 daemon="/usr/bin/x11vnc"
 pidfile="/run/x11vnc.pid"
@@ -15,7 +16,7 @@ start(){
     echo -n "Starting $(basename $daemon) ... "
     lsmod | grep -qw uinput || modprobe uinput
     port="9999"
-    $daemon -rfbport "$port" -rawfb console -allow "$SERVERID" -forever -nopw &
+    $daemon -rfbport "$port" -rawfb console -allow "$SERVERID" -forever -nopw >> /tmp/linbo.log 2>&1 &
     pid="$!"
     if [ -n "$pid" ]; then
         echo "$pid" > "$pidfile"

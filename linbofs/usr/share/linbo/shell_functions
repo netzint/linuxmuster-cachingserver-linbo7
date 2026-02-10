@@ -1,7 +1,7 @@
 # common linbo shell functions
 #
 # thomas@linuxmuster.net
-# 20240916
+# 20250808
 #
 
 set -o pipefail
@@ -11,6 +11,10 @@ trap bailout 1 2 3 10 12 13 15
 umask 002
 
 PID="$$"
+timestamp="$(date +%Y%m%d-%H%M%S)"
+
+# logging
+exec > >(tee -a /tmp/linbo.log) 2>&1
 
 if [ "$0" = "-sh" ]; then
   MYNAME="shell"
@@ -19,9 +23,6 @@ else
 fi
 TMP="/tmp/${MYNAME}.${PID}.tmp"
 rm -f "$TMP"
-
-# split start.conf if not done yet
-[ -e /conf/linbo ] || linbo_split_startconf
 
 # read environment
 source /.env
@@ -77,6 +78,13 @@ printargs(){
   echo ""
 }
 
+
+# convert a string to lower chars
+tolower(){
+  echo "$1" | tr A-Z a-z
+}
+
+
 # test if string is alpha numeric
 isalnum(){
   if [[ $1 =~ ^[[:alnum:]]+$ ]];then
@@ -99,7 +107,7 @@ isinteger() {
 # test if number is even or odd
 iseven(){
   isinteger $1 || return 1
-  [ `expr $1 % 2` == 0 ] && return 0
+  [ $(expr $1 % 2) == 0 ] && return 0
 	return 1
 }
 
@@ -159,6 +167,15 @@ get_label(){
 # get real devicename by label
 # ex.: get_realdev /dev/sda4
 get_realdev(){
+  dev="$1"
+  if [ -L "$1" ]; then
+    ls -l "$1" | awk -F\> '{print $2}' | xargs
+    return
+  fi
+  if [ -b "$1" ]; then
+    echo "$dev"
+    return
+  fi
   local label="$(get_label $1)"
   [ -z "$label" ] && return
   local dev="/dev/$(ls -l /dev/disk/by-label/$label | awk -F\> '{print $2}' | awk -F\/ '{print $3}')"
@@ -205,48 +222,40 @@ remote_cache(){
 killalltorrents(){
   local WAIT=5
   # check for running torrents and kill them if any
-  if [ -n "`ps w | grep ctorrent | grep -v grep`" ]; then
+  if ps w | grep -v grep | grep -q ctorrent; then
     echo "Stopping torrents ..."
     killall -9 ctorrent 2>/dev/null
     sleep "$WAIT"
-    [ -n "`ps w | grep ctorrent | grep -v grep`" ] && sleep "$WAIT"
+    ps w | grep -v grep | grep -q ctorrent && sleep "$WAIT"
   fi
 }
 
 
-# upload logfile to linbo server or store it local in cache
-# usage example (logfile parameter is optional): sendlog <name_of_logfile_in_tmp>
-sendlog(){
-  local RC="1"
+# clean logfile from redundant lines
+cleanlog(){
   local logfile="$1"
-  local logbase
-  local logtmp
-  if [ -z "$logfile" ]; then
-    logfile="/tmp/linbo.log"
-    logtmp="/tmp/tmp.log"
-    echo "### $(date)" > "$logtmp"
-    local item
-    for item in /tmp/*.log; do
-      [ "$item" = "$logtmp" ] && continue 
-      logbase="$(basename "$item")"
-      echo "### $logbase" >> "$logtmp"
-      cat "$item" >> "$logtmp"
-      rm -f "$item"
-    done
-    mv "$logtmp" "$logfile"
-  else
-    logbase="$(basename "$logfile")"
-  fi
+  local tmplog="/tmp/tmp.log"
+  sed -i 's|\[StdOut\] ||g' "$logfile"
+  sed -i 's|  | |g' "$logfile"
+  awk '!seen[$0]++' "$logfile" > "$tmplog"
+  mv "$tmplog" "$logfile"
+}
+
+
+# upload logfile to linbo server or store it local in cache
+# usage example (logfile parameter is optional): sendlog <logfile>
+sendlog(){
+  local logfile="$1"
+  [ -z "$logfile" ] && logfile="/tmp/linbo.log"
   [ -s "$logfile" ] || return
-  [ -z "$logbase" -o -z "$logfile" ] && return
+  cleanlog "$logfile"
   if localmode; then
-    linbo_mountcache || return
+    grep -q ' /cache ' /proc/mounts || return
     echo "Saving $logfile to cache."
-    mv "$logfile" >> "/cache/$logbase)"
+    mv "$logfile" "/cache/$(basename "$logfile")"
   else
-    #[ -e /tmp/linbo-network.done ] || return 0
-    echo "Uploading $logbase ..."
-    rsync "$LINBOSERVER::linbo/$logfile" /tmp/dummy 2>&1 || true
+    echo "Requesting upload of $logfile ..."
+    rsync "$LINBOSERVER::linbo/${logfile}" /tmp/dummy &> /dev/null || true
     rm -f "$logfile"
   fi
 }
@@ -323,9 +332,20 @@ osname_startconf(){
 # get pos # of os by root partition
 osnr_startconf(){
   local item
+  local params="${@/ $cache/}"
+  local os_root="$(echo "$params" | awk '{print $1}')"
+  local os_kernel="$(echo "$params" | awk '{print $2}')"
+  local os_initrd="$(echo "$params" | awk '{print $3}')"
+  local os_append="${params/$os_root $os_kernel $os_initrd /}"
   for item in /conf/os.*; do
     source "$item"
-    if [ "$root" = "$1" ]; then
+    if [ "$root" = "$os_root" ]; then
+      ext="$(tolower "${baseimage##*.}")"
+      if [ "$ext" = "iso" ]; then
+        [ "$os_kernel" = "$kernel" ] || continue
+        [ "$os_initrd" = "$initrd" ] || continue
+        [ "$os_append" = "$append" ] || continue
+      fi
       echo "$item" | awk -F\. '{print $2}' 2> /dev/null
       break
     fi
@@ -343,13 +363,6 @@ images_startconf(){
 dltype_startconf(){
   source /conf/linbo 2> /dev/null || return
   echo "$downloadtype"
-}
-
-
-# get systemtype from start.conf
-systemtype_startconf(){
-  source /conf/linbo 2> /dev/null || return
-  echo "$systemtype"
 }
 
 
@@ -406,7 +419,7 @@ print_guid(){
   fi
   local i
   # get uuid with blkid
-  for i in `blkid "$1"`; do
+  for i in $(blkid "$1"); do
     case "$i" in
       PARTUUID=*|PTUUID=*)
         echo "$i" | awk -F\" '{print $2}' | tr a-z A-Z
@@ -436,27 +449,21 @@ get_disk_from_partition(){
 
 # get disks from kernel
 get_disks(){
-  local i
   local disks
-  if [ -d /dev/disk/by-path ]; then
-    for i in $(ls -l /dev/disk/by-path | grep -v '\-part' | awk -F\> '{ print $2 }' | awk -F\/ '{ print $3 }'); do
-      if [ -z "$disks" ]; then
-        disks="/dev/$i"
-      else
-        disks="$disks /dev/$i"
-      fi
-    done
-  # Fallback if disk by-path does not exist. This is caused by missing udev rules for excample in nvme files
-  else
-     for i in $(ls -l /dev/disk/by-id | grep -v '\-part' | awk -F\> '{ print $2 }' | awk -F\/ '{ print $3 }'); do
-       if [ -z "$disks" ]; then
-        disks="/dev/$i"
-       else
-        disks="$disks /dev/$i"
-       fi
-     done
-  fi
-  echo "$disks"
+  # first nvme disks
+  disks="$(lsblk -A -p -l -o NAME,TYPE,TRAN | grep ' disk ' | grep nvme | sort -k 3 | awk '{print $1}')"
+  # second other internal disks
+  disks="$disks $(lsblk -A -p -l -o NAME,TYPE,TRAN | grep ' disk ' | grep -v usb | grep -v nvme | sort -k 3 | awk '{print $1}')"
+  # finally usb disks
+  disks="$disks $(lsblk -A -p -l -o NAME,TYPE,TRAN | grep ' disk ' | grep usb | sort -k 3 | awk '{print $1}')"
+  echo "$disks" | xargs
+  return 0
+}
+
+
+# get partitions from kernel
+get_parts(){
+  lsblk -A -p -l -o NAME,TYPE | grep ' part' | awk '{print $1}' | xargs
   return 0
 }
 
@@ -475,7 +482,7 @@ get_partition_size(){
     fi
     [ -b "$partsrc" ] && part="$partsrc"
   fi
-  local size="$(grep -w "${part#\/dev\/}" /proc/partitions | awk '{ print $3 }' 2>> /tmp/linbo.log)"
+  local size="$(grep -w "${part#\/dev\/}" /proc/partitions | awk '{ print $3 }')"
   if [ -n "$size" ]; then
     echo "$size"
     return 0
@@ -490,7 +497,24 @@ get_partition_size(){
 get_partnr(){
   [ -b "$1" ] || return 1
   echo "$1" | sed -e 's|/dev/[hsv]d[abcdefgh]||' -e 's|/dev/xvd[abcdefgh]||' \
-                  -e 's|/dev/mmcblk[0-9]p||' -e 's|/dev/nvme0n[0-9]p||'
+                  -e 's|/dev/mmcblk[0-9]p||' -e 's|/dev/disk[0-9]p||' -e 's|/dev/nvme0n[0-9]p||'
+}
+
+
+# compute real partition name from unified partition name
+get_real_partname(){
+  local part="$1"
+  # if not a unified name do nothing
+  if [ "${part:0:9}" != "/dev/disk" ]; then
+    echo "$part"
+    return
+  fi
+  local disk="$(get_disk_from_partition "$part")"
+  local realdisk="$(realpath "$disk")"
+  case "$realdisk" in
+    /dev/mmcblk[0-9]|/dev/nvme0n[0-9]) echo "$part" | sed -e "s|$disk|$realdisk|" ;;
+    *) echo "$part" | sed -e "s|${disk}p|$realdisk|" ;;
+  esac
 }
 
 
@@ -584,23 +608,32 @@ print_efi_bootnr(){
 }
 
 
+# delete efi label
+# del_efi_label efiloader
+del_efi_label(){
+  local efiloader="$(basename "${1//\\/\/}")"
+  local item
+  efibootmgr | grep "$efiloader" | awk '{print $1}' | sed -e 's|Boot||' -e 's|*||' | while read item; do
+    efibootmgr -B -b "$item" || continue
+  done
+}
+
+
 # create efi boot entry
 # create_efiboot label efipart
 create_efiboot(){
-  # return if entry exists
-  efibootmgr | grep ^Boot[0-9] | awk -F\* '{ print $2 }' | grep -qiw " $1" && return 0
   local label="$1"
   local efipart="$2"
   local efipartnr="$(get_partnr "$efipart")"
   local efidisk="$(get_disk_from_partition "$efipart")"
   local efiloader
-  local bits
   case "$label" in
     *[Ww][Ii][Nn][Dd][Oo][Ww][Ss]*) efiloader="\\EFI\\Microsoft\\Boot\\bootmgfw.efi" ;;
-    grub) efiloader="\\EFI\\grub\\grubx64.efi" ;;
-    *) echo "Unknown efiloader: $efiloader." ; return 1 ;;
+    *) label="LINBO"; efiloader="\\EFI\\grub\\grubx64.efi" ;;
   esac
-  if efibootmgr --create --disk "$efidisk" --part "$efipartnr" --loader "$efiloader" --label "$label" 2>> /tmp/linbo.log 1>> /tmp/linbo.log; then
+  # delete old label before creating new one
+  del_efi_label "$efiloader"
+  if efibootmgr --create --disk "$efidisk" --part "$efipartnr" --loader "$efiloader" --label "$label"; then
     echo "EFI boot entry for $label successfully created."
   else
     echo "Failed to create EFI boot entry for $label."
@@ -614,11 +647,11 @@ create_efiboot(){
 set_efibootnext(){
   local bootloaderid="$1"
   local RC="0"
-  [ -n "$FORCEGRUB" ] && bootloaderid="grub"
+  [ -n "$FORCEGRUB" ] && bootloaderid="LINBO"
   # get the bootnr
   local bootnextnr="$(print_efi_bootnr "$bootloaderid")"
   if [ -n "$bootnextnr" ]; then
-    if efibootmgr --bootnext "$bootnextnr" 2>> /tmp/linbo.log 1>> /tmp/linbo.log; then
+    if efibootmgr --bootnext "$bootnextnr"; then
       echo "EFI bootnext for $bootloaderid has been set to $bootnextnr."
     else
       echo "Failed to set boot no. for $bootloaderid to $bootnextnr."
@@ -632,76 +665,41 @@ set_efibootnext(){
 }
 
 
-# set_efibootorder: set the boot order to local,network
+# set_efibootorder: set the boot order to network,local
 set_efibootorder(){
   local efiout="/tmp/efiout"
   efibootmgr | grep ^Boot | grep -vi ipv6 > "$efiout"
-  local i
+  local item
   local nr
   local RC="0"
-  local bootorder
-  # searchstrings for grub (local boot) and efi network devices
-  for i in grub ipv4 pxev4 "pxe ip4" "efi network" "usb nic" "onboard nic"; do
-    nr="$(print_efi_bootnr "$i" "$efiout")"
-    [ -z "$nr" ] && continue
-    if [ -n "$bootorder" ]; then
-      bootorder="$bootorder,$nr"
-    else
-      bootorder="$nr"
-    fi
-  done
-  if [ -n "$bootorder" ]; then
-    if efibootmgr --bootorder "$bootorder" 2>> /tmp/linbo.log 1>> /tmp/linbo.log; then
-      echo "EFI bootorder has been successfully set."
-    else
-      echo "Failed to set EFI bootorder."
-      RC="1"
-    fi
+  local bootorder="$(efibootmgr | grep ^BootOrder | awk '{print $2}')"
+  # add LINBO label if not present
+  if ! echo "$bootorder" | grep -q LINBO; then
+    create_efiboot LINBO "$(print_efipart)"
+    bootorder="$(efibootmgr | grep ^BootOrder | awk '{print $2}')"
   fi
+  rm -f /tmp/bootlabels
+  # boot uefi pxe first, if efipxe kernel param is set
+  [ -n "$EFIPXE" ] && echo "LINBO" > /tmp/bootlabels
+  # efi network devices
+  grep -v ^# /usr/share/linbo/efipxe >> /tmp/bootlabels
+  # boot linbo first
+  [ -z "$EFIPXE" ] && echo "LINBO" >> /tmp/bootlabels
+  # iterate over bootlabels, last item will be first in bootorder
+  cat /tmp/bootlabels | while read item; do
+    [ -z "$item" ] && continue
+    nr="$(print_efi_bootnr "$item" "$efiout")"
+    [ -z "$nr" ] && continue
+    if [ -z "$bootorder" ]; then
+      bootorder="$nr"
+    else
+      bootorder="$nr,$bootorder"
+    fi
+    efibootmgr -o "$bootorder" &> /dev/null || RC="1"
+  done
   # remove dups
   efibootmgr -D || RC="1"
   return "$RC"
-}
-
-
-# repair_efi: sets efi configuration into a proper state
-# args: efipart
-repair_efi(){
-  echo "repair_efi $@"
-  local doneflag="/tmp/.repair_efi"
-  [ -e "$doneflag" ] && return 0
-  local efipart="$1"
-  local efiout="/tmp/efiout"
-  local startflag="/tmp/.start"
-  local line
-  local item
-  local FOUND
-  local bootnr
-  # first remove redundant entries, keep entries with lower number
-  efibootmgr | grep ^Boot[0-9] | sort -r > "$efiout" || return 1
-  # read in the unique boot entries and test for multiple occurances of the same item
-  awk -F\* '{ print $2 }' "$efiout" | sort -u | while read item; do
-    [ -z "$item" ] && continue
-    line=""
-    FOUND=""
-    # delete redundant entries
-    grep "$item" "$efiout" | while read line; do
-      if [ -z "$FOUND" ]; then
-        FOUND="yes"
-        continue
-      else
-        bootnr="$(echo "$line" | awk -F\* '{ print $1 }' | sed 's|Boot||')"
-        efibootmgr --bootnum "$bootnr" --delete-bootnum 2>> /tmp/linbo.log 1>> /tmp/linbo.log || return 1
-      fi
-    done
-  done
-  # create grub entry if missing
-  create_efiboot grub "$efipart" || return 1
-  # set bootorder
-  if [ ! -e "$startflag" ]; then
-    set_efibootorder || return 1
-  fi
-  touch "$doneflag"
 }
 
 
@@ -733,8 +731,6 @@ mk_winefiboot(){
     echo "Failed to restore windows EFI bootfiles."
     RC="1"
   fi
-  # create efi bootloader entry if missing
-  create_efiboot "$bootloaderid" "$efipart" || RC="1"
   [ "$RC" = "0" ] && touch "$doneflag"
   return "$RC"
 }
@@ -749,8 +745,6 @@ mk_efiboot(){
   local startflag="/tmp/.start"
   local bootloaderid
   local doneflag="/tmp/.grub-install"
-  # repare efi configuration
-  repair_efi "$efipart" || return 1
   # restore windows efi boot files
   local RC="0"
   if [ "$(linbo_fstype $partition)" = "ntfs" ]; then
@@ -765,6 +759,8 @@ mk_efiboot(){
       fi
     fi
   fi
+  # create efi bootloader entry
+  create_efiboot "$bootloaderid" "$efipart" || RC="1"
   # install default efi boot file
   local grubefi="/boot/efi/EFI/grub/grubx64.efi"
   if [ -s "$grubefi" ]; then
@@ -809,7 +805,7 @@ mk_linefiboot(){
   mkdir -p /mnt/boot/efi
   mount "$efipart" /mnt/boot/efi || return 1
   mkdir -p /mnt/boot/efi/EFI
-  grub-install --root-directory=/mnt --bootloader-id="$bootloaderid" "$grubdisk" 2>> /tmp/linbo.log || RC="1"
+  grub-install --root-directory=/mnt --bootloader-id="$bootloaderid" "$grubdisk" || RC="1"
   umount /mnt/boot/efi
   [ "$RC" = "0" ] && touch "$doneflag"
   return "$RC"
@@ -867,7 +863,9 @@ prepare_reboot(){
   local KERNEL="${4#/}"
   local INITRD="${5#/}"
   local APPEND="$6"
-  local efipart="$7"
+  if [ -n "$7" ]; then
+    local efipart="$7"
+  fi
   local efiboot="false"
   remote_cache "$cache" || local localcache="yes"
   if [ -z "$NOEFIBOOTMGR" -a -n "$efipart" ]; then
@@ -888,6 +886,8 @@ prepare_reboot(){
 # mk_grubboot partition grubenv kernel initrd append
 # prepare for grub boot after reboot
 mk_grubboot(){
+  echo "mk_grubboot $@"
+  local item
   local partition="$1"
   local grubenv="$2"
   local KERNEL="$3"
@@ -915,6 +915,13 @@ mk_grubboot(){
       grub-editenv "$grubenv" set reboot_append="$APPEND" || RC="1"
     fi
   fi
+  # check for isofile
+  for item in $APPEND; do
+    echo "$item" | grep -q ^findiso= && eval $item
+  done
+  if [ -n "$findiso" ]; then
+    grub-editenv "$grubenv" set reboot_iso="$findiso" || RC="1"
+  fi
   [ "$RC" = "0" ] && touch "$doneflag"
   return "$RC"
 }
@@ -927,7 +934,9 @@ mk_boot(){
   local KERNEL="${2#/}"
   local INITRD="${3#/}"
   local APPEND="$4"
-  local efipart="$(print_efipart)"
+  if [ -n "$(print_efipart)" ]; then
+    local efipart="$(print_efipart)"
+  fi
   local partition="$1"
   remote_cache "$cache" || local localcache="yes"
   # get disk for grub install, use always the first disk from start.conf
@@ -959,7 +968,7 @@ mk_boot(){
   # install grub in mbr/efi
   if [ ! -e "$doneflag" -a -n "$localcache" ]; then
     echo -n "Installing GRUB in MBR/EFI of $grubdisk ... "
-    grub-install --root-directory=/cache --no-nvram -s $grubdisk 2>> /tmp/linbo.log || RC="1"
+    grub-install --root-directory=/cache --no-nvram -s $grubdisk || RC="1"
     if [ "$RC" = "0" ]; then
       touch "$doneflag"
       echo "OK!"
@@ -1004,12 +1013,12 @@ update_win(){
     cd "$curdir"
     if [ -n "$seclist" ]; then
       sync
-      umount /mnt 2>> /tmp/linbo.log
+      umount /mnt
       for i in $seclist; do
-        echo "Restrict access rights on $i:" | tee -a /tmp/linbo.log
-        ntfssecaudit "$partition" 700 "$i" | tee -a /tmp/linbo.log
+        echo "Restrict access rights on $i:"
+        ntfssecaudit "$partition" 700 "$i"
       done
-      linbo_mount "$partition" /mnt 2>> /tmp/linbo.log
+      linbo_mount "$partition" /mnt
     fi
   fi
   return "$RC"

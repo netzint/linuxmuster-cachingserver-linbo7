@@ -2,7 +2,7 @@
 #
 # linbo_update
 # thomas@linuxmuster.net
-# 20230403
+# 20250423
 #
 
 usage(){
@@ -23,6 +23,7 @@ usage(){
 
 # get environment
 source /usr/share/linbo/shell_functions
+echo "### $timestamp $(basename "$0") $@ ###"
 
 # do not execute in localmode
 if localmode; then
@@ -39,6 +40,7 @@ doneflag="/tmp/.update.done"
 
 if [ -e "$doneflag" -a -z "$FORCE" ]; then
   echo "linbo_update has been already done."
+  sendlog
   exit 0
 else
   rm -f "$doneflag"
@@ -49,7 +51,10 @@ rebootflag="/tmp/.linbo.reboot"
 RC=0
 
 grubdir="/cache/boot/grub"
-linbo_mountcache || exit 1
+if ! linbo_mountcache &> /dev/null; then
+  sendlog
+  exit 1
+fi
 mkdir -p "$grubdir"
 
 cd /cache
@@ -63,33 +68,36 @@ echo "Looking for LINBO updates."
 # first check md5sum of linbofs
 [ -e linbofs64 ] && md5_before="$(md5sum linbofs64 | awk '{ print $1 }')"
 [ -e linbofs64.md5 ] && mv linbofs64.md5 linbofs64.md5.bak
-linbo_download linbofs64.md5
+linbo_download linbofs64.md5 &> /dev/null
 md5_after="$(cat linbofs64.md5 2> /dev/null)"
 if [ -z "$md5_after" ]; then
-  echo "Failed to download linbofs64.md5!" >&2
+  echo "Failed to download linbofs64.md5!"
   [ -e linbofs64.md5.bak ] && mv linbofs64.md5.bak linbofs64.md5
+  sendlog
   exit 1
 fi
 rm -f linbofs64.md5.bak
 # if the linbofs checksum differs, download recent versions of linbofs and linbo
 if [ "$md5_before" != "$md5_after" ]; then
   # first linbofs
-  linbo_download linbofs64
+  linbo_download linbofs64 &> /dev/null
   # verify download
   md5_current="$(md5sum linbofs64 | awk '{ print $1 }')"
   if [ "$md5_current" != "$md5_after" ]; then
-    echo "Checksums differ, failed to download linbofs64!" >&2
+    echo "Checksums differ, failed to download linbofs64!"
+    sendlog
     exit 1
   fi
   # second linbo
-  linbo_download linbo64
+  linbo_download linbo64 &> /dev/null
   md5_current="$(md5sum linbo64 | awk '{ print $1 }')"
   rm -f linbo64.md5
-  linbo_download linbo64.md5
+  linbo_download linbo64.md5 &> /dev/null
   # verify download
   md5_after="$(cat linbo64.md5 2> /dev/null)"
   if [ "$md5_current" != "$md5_after" ]; then
-    echo "Checksums differ, failed to download linbo64!" >&2
+    echo "Checksums differ, failed to download linbo64!"
+    sendlog
     exit 1
   fi
   # flag a reboot if linbo was not booted over network
@@ -113,15 +121,17 @@ echo "Downloading linbo wallpaper."
 
 # get ipxe files from server
 echo "Updating ipxe file."
-case "$systemtype" in
-  efi*) linbo_download boot/grub/ipxe.efi ;;
-  *) linbo_download boot/grub/ipxe.lkrn ;;
-esac
+# efi or bios?
+if [ -d /sys/firmware/efi/efivars ]; then
+  linbo_download boot/grub/ipxe.efi &> /dev/null
+else
+  linbo_download boot/grub/ipxe.lkrn &> /dev/null
+fi
 
 # get grub configs from server
 echo "Updating common grub configuration."
 cfgfile="$HOSTNAME.$HOSTGROUP.grub.cfg"
-if linbo_download "boot/grub/spool/$cfgfile"; then
+if linbo_download "boot/grub/spool/$cfgfile" &> /dev/null; then
   # initiate reboot if grub configuration has changed
   if ! diff -q "$cfgfile" "$grubdir/grub.cfg" &> /dev/null; then
     echo "grub.cfg was updated."
@@ -134,7 +144,7 @@ fi
 # get host or group specific grub config from server
 echo "Updating host and group specific grub configuration."
 for i in "boot/grub/hostcfg/$HOSTNAME.cfg" "boot/grub/$HOSTGROUP.cfg"; do
-  if linbo_download "$i"; then
+  if linbo_download "$i" &> /dev/null; then
     cfgfile="$(basename "$i")"
     # initiate reboot if grub configuration has changed
     if ! diff -q "$cfgfile" "$grubdir/custom.cfg" &> /dev/null; then
@@ -153,7 +163,8 @@ themesdir="/boot/grub/themes"
 mkdir -p "/cache$themesdir"
  rsync --skip-compress="$RSYNC_SKIP_COMPRESS" -a --delete "${LINBOSERVER}::linbo${themesdir}/" "/cache${themesdir}/" || RC=1
 if [ "$RC" = "1" ]; then
-  echo "Failed!" >&2
+  echo "Failed!"
+  sendlog
   exit 1
 else
   echo "OK!"
@@ -164,7 +175,8 @@ echo -n "Updating linuxmuster-win ... "
 [ -d /cache/linuxmuster-win ] || mkdir -p /cache/linuxmuster-win
  rsync --skip-compress="$RSYNC_SKIP_COMPRESS" -a --exclude=*.ex --delete --delete-excluded "$LINBOSERVER::linbo/linuxmuster-win/" /cache/linuxmuster-win/ || RC=1
 if [ "$RC" = "1" ]; then
-  echo "Failed!" >&2
+  echo "Failed!"
+  sendlog
   exit 1
 else
   echo "OK!"
@@ -196,7 +208,7 @@ if [ "$RC" = "0" ]; then
   # initiate warmstart|reboot only if linbo has been booted locally from cache
   [ -n "$reboot" -a -n "$LOCALBOOT" ] && touch "$rebootflag"
 else
-  echo "Linbo & grub update failed!" >&2
+  echo "Linbo & grub update failed!"
 fi
 
 sendlog

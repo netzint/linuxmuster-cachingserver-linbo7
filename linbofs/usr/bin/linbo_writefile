@@ -1,31 +1,24 @@
 #!/bin/sh
 #
-# linbo_writefile
+# write image description to cache, used by linbo_gui
 # thomas@linuxmuster.net
-# 20220611
+# 20251109
 #
 
-usage(){
-  echo
-  echo "Writes file to cache."
-  echo
-  echo "Usage: linbo_writefile <filename> [sourcefile] | [help]"
-  echo
-  exit 0
-}
+# linbo_writefile cachepartition filename
 
-# print help
-[ -z "$1" -o "$1" = "help" ] && usage
+# test options
+[ -z "$1" ] && exit 1
 
-# shift cache parameter if given
-[ -z "$1" -o -b "$1" ] && shift
-
-linbo_mountcache || exit 1
-
-if [ -e "$2" ]; then
-  cp -a "$2" "/cache/$1"
-else
-  cat > "/cache/$1"
+# shift obsolete cache device name option given by linbo_gui
+if [ -b "$1" -o "$1" = "/cache" ]; then
+    shift
+    GUI="yes"
 fi
 
-exit "$?"
+# test remaining option
+[ -z "$1" ] && exit 1
+
+descfile="/cache/$1"
+
+cat > "$descfile" || exit 1

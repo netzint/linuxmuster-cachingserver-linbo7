@@ -1,16 +1,16 @@
 #!/bin/bash
 #
-# creating/updating linbofs.lz with linbo password and ssh keys
-# has to be invoked during linuxmuster-setup,  package upgrade or
+# creating/updating linbofs with linbo password, ssh keys and firmware,
+# has to be invoked during linuxmuster-setup, package upgrade or
 # linbo password change in /etc/rsyncd.secrets.
 #
 # thomas@linuxmuster.net
 # GPL V3
-# 20231121
+# 20260110
 #
 
 # read linuxmuster environment
-source /usr/share/linuxmuster/linbo/helperfunctions.sh || exit 1
+source /usr/share/linuxmuster/helperfunctions.sh || exit 1
 
 if [ ! -s "$SETUPINI" ]; then
 	echo "linuxmuster.net is not yet set up, aborting!"
@@ -28,6 +28,15 @@ if [ -e "$locker" ]; then
 fi
 touch $locker || exit 1
 chmod 400 "$locker"
+
+
+# globals
+FW_SYSTEM="/lib/firmware"
+FW_CACHE="$LINBOCACHEDIR/firmware"
+FW_LIST_LOCAL="$FW_CACHE/.fw_list"
+FW_LIST_REMOTE="WHENCE"
+FW_URL="https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain"
+
 
 # get kernel image, modules and version
 # first set custom kernel, if provided
@@ -103,6 +112,155 @@ exec_hooks() {
 }
 
 
+# provide system locale in linbofs
+copy_locale() {
+	[ -z "$LANG" ] && return
+	cmap="${LANG#*.}"
+	echo "Copy locale $LANG ..."
+	mkdir -p usr/lib/locale
+	mkdir -p usr/share/locale
+	mkdir -p usr/share/i18n/locales
+	mkdir -p usr/share/i18n/charmaps
+	cp -r "/usr/share/locale/${LANG%_*}" usr/share/locale
+	cp -r "/usr/share/i18n/locales/${LANG%.*}" usr/share/i18n/locales
+	cp /usr/share/i18n/SUPPORTED usr/share/i18n
+	cp /usr/share/i18n/locales/i18n* usr/share/i18n/locales
+	cp /usr/share/i18n/locales/iso14651_t1* usr/share/i18n/locales
+	cp /usr/share/i18n/locales/translit_* usr/share/i18n/locales
+	cp "/usr/share/i18n/charmaps/$cmap.gz" usr/share/i18n/charmaps
+	cp /usr/sbin/locale-gen usr/sbin
+	cp /usr/bin/localedef usr/bin
+	cp /usr/bin/locale usr/bin
+	cp /etc/locale* etc
+	cp /etc/vconsole.conf etc
+	localtime="$(realpath /etc/localtime)"
+	[ -e "$localtime" ] && cp "$localtime" etc/localtime
+	chroot ./ /usr/sbin/locale-gen --lang "$LANG"
+	rm -f usr/sbin/locale-gen usr/bin/localedef
+}
+
+
+# download firmware filelist from kernel.org to cache
+download_fwlist() {
+	mkdir -p "$FW_CACHE"
+	local tmp_file="${FW_LIST_LOCAL}.tmp"
+	local RC=0
+	# download to temporary file, if successful, move in place
+	if wget -q "$FW_URL/$FW_LIST_REMOTE" -O "$tmp_file"; then
+		mv "$tmp_file" "$FW_LIST_LOCAL" || RC=1
+	# remove failed download
+	else
+		rm -f "$FW_LIST_LOCAL"*
+		touch "$FW_LIST_LOCAL"
+		RC=1
+	fi
+	if [ $RC = 0 ]; then
+		echo "Firmware list successfully downloaded."
+	else
+		echo "Download of firmware list failed!"
+	fi
+}
+
+
+# download firmware from kernel.org to cache
+download_fw() {
+	local fw_name="$1"
+	# get remote firmware path(s) from downloaded firmware filelist
+	local remote_files="$(grep ^File: "$FW_LIST_LOCAL" | grep -w "$fw_name" | awk '{print $2}')"
+	[ -z "$remote_files" ] && return 1
+	# download to temporary file, if successful, move in place
+	local tmp_file
+	local local_file
+	local item
+	local RC=0
+	for item in $remote_files; do
+		local_file="$FW_CACHE/$(basename "$item")"
+		tmp_file="${local_file}.tmp"
+		if wget -q "$FW_URL/$item" -O "$tmp_file"; then
+			mv "$tmp_file" "$local_file"
+			# compress downloaded firmware file
+			zstd -qf --adapt --rm "$local_file" || RC=1
+		else
+			rm -f "$tmp_file"
+			RC=1
+		fi
+	done
+	return $RC
+}
+
+
+# parse linbo logs for missing firmware and print found firmware names
+parse_firmware_logs(){
+	# return if no log file exists
+	[ -z "$(find $LINBOLOGDIR -name \*_linbo.log)" ] && return
+	# get pci ids of devices with failed firmware load
+	local pci_ids="$(grep firmware $LINBOLOGDIR/*_linbo.log | grep -i failed \
+		| grep -o "00:[0-9a-f][0-9a-f].[0-9a-f]:" | sort -u)"
+	[ -z "$pci_ids" ] && return
+	# extract firmware names with pci ids of devices with failed firmware load
+	local pci_id
+	for pci_id in $pci_ids; do
+		grep "$pci_id" $LINBOLOGDIR/*_linbo.log |\
+		grep -o "for .* failed" |\
+		sed 's|for ||' |\
+		sed 's| failed||' |\
+		sort -u
+	done | xargs
+}
+
+
+# copy local firmware to cache
+copy_fw() {
+	local fw_name="$1"
+	local fw_zst="${fw_name}.zst"
+	# get firmware file from local system
+	local fw_src="$(find "$FW_SYSTEM" -name "$fw_zst" -type f,l -print -quit)"
+	[ -n "$fw_src" ] && rsync -L "$fw_src" "$FW_CACHE/" && return
+	# get firmware directory from local system
+	fw_src="$(find "$FW_SYSTEM" -name "$fw_name" -type d -print -quit)"
+	[ -n "$fw_src" ] && find "$fw_src" -type f,l | xargs -I % rsync -L % "$FW_CACHE/" && return
+	return 1
+}
+
+
+# provide firmare defined in LINBOSYSDIR/firmware or found in LINBOLOGDIR/*_linbo.log
+provide_firmware() {
+	local fw_conf="$LINBOSYSDIR/firmware"
+	local fw_names
+	# extract firmware filenames from config, if it exists and contains lines
+	if [ -s "$fw_conf" ]; then
+		[ -n "$(grep -v ^# "$fw_conf")" ] && \
+			fw_names="$(basename -a $(grep -v ^# "$fw_conf") | sed 's|.zst||' | xargs)"
+	fi
+	# extract firmware filenames from logs
+	fw_names="$(echo "$fw_names $(parse_firmware_logs | xargs -n1 | sort -u)" | xargs)"
+	# return if empty
+	[ -z "$fw_names" ] && return
+
+	# download firmware list from kernel.org
+	download_fwlist
+
+	echo "Collecting firmware to cache:"
+	# use local copy of regulatory.db
+	rsync "$FW_SYSTEM"/regulatory.db* "$FW_CACHE" && echo " - regulatory.db (local)"
+	# copy firmware to cache (local & remote)
+	local fw_name
+	for fw_name in $fw_names; do
+		# regulatory.db is already copied to cache
+		stringinstring regulatory "$fw_name" && continue
+		# copy firmware locally available
+		copy_fw "$fw_name" && echo " - "$fw_name" (local)" && continue
+		# download firmware not locally available
+		[ -s "$FW_LIST_LOCAL" ] && download_fw "$fw_name" && echo " - "$fw_name" (remote)"
+	done
+
+	echo "Copying all cached firmware to linbofs:"
+	local fw_target="${FW_SYSTEM/\/}"
+	local fw_list="$(basename "$FW_LIST_LOCAL")"
+	rsync -v --exclude="$fw_list" "$FW_CACHE/"* "$fw_target/"
+}
+
+
 create_linbofs() {
 	local linbofs="linbofs64"
 	local linbofs_template="$LINBOVARDIR/${linbofs}.xz"
@@ -110,10 +268,6 @@ create_linbofs() {
 	local linbofs_xz="$LINBODIR/${linbofs}"
 	local linbofs_md5="${linbofs_xz}.md5"
 	local conf
-	local fw_base="/lib/firmware"
-	local fw_dir
-	local fw_source
-	local fw_target
 	local i
 
 	rm -f "$linbofs_md5"
@@ -178,25 +332,14 @@ create_linbofs() {
 	# copy default start.conf
 	cp -f $LINBODIR/start.conf .
 
-	# timezone
-	# copy timezone info file
-	[ -e /etc/localtime ] && cp -L "/etc/localtime" etc/localtime
+	# copy efi pxe devicenames
+	cp "$LINBOSHAREDIR/efipxe" usr/share/linbo
 
-	# provide firmware
-	conf="$LINBOSYSDIR/firmware"
-	if [ -s "$conf" ]; then
-		echo "Copying firmware ..."
-		grep -v ^# "$conf" | while read line; do
-			[ -z "$line" ] && continue
-			fw_source="$fw_base/$line"
-			[ -e "$fw_source" ] || continue
-			echo "  $line"
-			fw_target="${fw_source/\/}"
-			fw_dir="$(dirname "$fw_target")"
-			mkdir -p "$fw_dir"
-			cp -a "$fw_source" "$fw_dir"
-		done
-	fi
+	# locale
+	copy_locale
+
+	# firmware
+	provide_firmware
 
 	# provide wpa_supplicant config
 	conf="$LINBOSYSDIR/wpa_supplicant.conf"
@@ -217,7 +360,7 @@ create_linbofs() {
 	exec_hooks pre
 
 	# pack linbofs64
-	echo "Creating xz archive (may take a while) ..."
+	echo "Creating linbofs archive (may take a while) ..."
 	set -o pipefail
 	find . -print | cpio --quiet -o -H newc | xz -e --check=none -z -f -T 0 -c -v > "$linbofs_xz" ; RC="$?"
 	set +o pipefail
@@ -227,10 +370,10 @@ create_linbofs() {
 	md5sum "$linbofs_xz"  | awk '{ print $1 }' > "$linbofs_md5"
 
 	# link to old filename
-	linbofs_lz="${linbofs_xz}.lz"
-	rm -f "${linbofs_lz}"*
-	ln -s "$(basename $linbofs_xz)" "$linbofs_lz"
-	ln -s "$(basename $linbofs_md5)" "${linbofs_lz}.md5"
+	#linbofs_lz="${linbofs_xz}.lz"
+	#rm -f "${linbofs_lz}"*
+	#ln -s "$(basename $linbofs_xz)" "$linbofs_lz"
+	#ln -s "$(basename $linbofs_md5)" "${linbofs_lz}.md5"
 
 	# copy kernel image
 	echo "Copying $KTYPE kernel version $KVERS ..."

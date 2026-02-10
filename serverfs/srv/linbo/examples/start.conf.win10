@@ -5,9 +5,7 @@
 # data on partition 3
 
 [LINBO]                             # global section
-Server = 10.0.0.1                   # linbo server ip address
 Group = group                       # name of the hardware group
-# IMPORTANT: server and group will be automatically set during device import!
 Cache = /dev/sda2                   # cache partition
 RootTimeout = 600                   # logout from admin console after 600 secs
 AutoPartition = no                  # no partition repair during LINBO startup
@@ -17,7 +15,6 @@ DownloadType = torrent              # image download method (torrent|multicast|r
 GuiDisabled = no                    # disable gui <yes|no>
 UseMinimalLayout = no               # gui layout style <yes|no>
 Locale = de-de                      # gui locale <de-de|en-gb|fr-fr|es-es>
-SystemType = bios64                 # possible values: bios|bios64|efi32|efi64 (default: bios)
 KernelOptions = quiet splash        # linbo kernel options, space separated
 #KernelOptions = acpi=noirq irqpoll # linbo kernel options example for use with acpi problems
 #KernelOptions = server=10.0.0.5    # different pxe server ip, (needs device import to be activated)
@@ -48,11 +45,9 @@ Bootable = no        # set bootable flag no
 
 [OS]                          # os section
 Name = Windows 10             # os name
-Version =                     # version (not used)
 Description = Windows 10 1903 # detailed description of os
 IconName = win10.svg          # icon filename in /srv/linbo/icons
 BaseImage = win10.qcow2       # filename of main image (extension .qcow2)
-Boot = /dev/sda1              # boot partition (not used, identical with root partition)
 Root = /dev/sda1              # root partition of the os
 Kernel = auto                 # auto for windows
 Initrd =                      # empty for windows
@@ -63,4 +58,3 @@ NewEnabled = yes              # show new+start button
 Autostart = no                # automatic start of os (yes|no)
 AutostartTimeout = 5          # timeout in secs for user to cancel automatic start
 DefaultAction = sync          # default action on automatic start: start|sync|new
-Hidden = yes                  # hide os tab (unused option, leave it at yes)

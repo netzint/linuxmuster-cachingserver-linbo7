@@ -2,12 +2,12 @@
 #
 # creates directory structure for grub network boot
 # thomas@linuxmuster.net
-# 20210224
+# 20250503
 # GPL V3
 #
 
 # read linuxmuster environment
-. /usr/share/linuxmuster/defaults.sh || exit 1
+. /usr/share/linuxmuster/environment.sh || exit 1
 
 # architectures
 I386="i386-pc"
@@ -17,6 +17,16 @@ EFI64="x86_64-efi"
 SUBDIR="/boot/grub"
 I386_DIR="/usr/lib/grub/$I386"
 EFI64_DIR="/usr/lib/grub/$EFI64"
+
+# grub modules
+GRUBCOMMONMODS="all_video boot chain configfile cpuid echo net ext2 extcmd fat gettext gfxmenu \
+  gfxterm gzio http iso9660 ntfs linux linux16 loadenv loopback minicmd net part_gpt part_msdos \
+  png progress read reiserfs search sleep terminal test tftp"
+# arch specific netboot modules
+GRUBEFIMODS="$GRUBCOMMONMODS $(ls "$EFI64_DIR"/*efi*.mod | sed "s|$EFI64_DIR/||g" | sed 's|\.mod||g')"
+GRUBI386MODS="$GRUBCOMMONMODS biosdisk gfxterm_background normal ntldr pxe"
+GRUBISOMODS='iso9660 usb'
+GRUBFONT='unicode'
 
 # image files
 CORE_I386="$LINBOGRUBDIR/$I386/core"

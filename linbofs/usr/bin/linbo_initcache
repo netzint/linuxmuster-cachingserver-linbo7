@@ -2,7 +2,7 @@
 #
 # linbo_initcache [serverip] [cachedev] [downloadtype] | [-h|help|--help]
 # thomas@linuxmuster.net
-# 20230126
+# 20250427
 #
 
 usage(){
@@ -22,6 +22,7 @@ usage(){
 
 # get environment
 source /usr/share/linbo/shell_functions
+echo "### $timestamp $(basename "$0") ###"
 
 # get downloadtype
 source /conf/linbo || exit 1
@@ -42,14 +43,14 @@ fi
 # if FORMAT is set, format cache partition
 if [ -n "$FORMAT" ]; then
   echo "Formatting cache partition $cache ..."
-  linbo_format "$cache" 2>> /tmp/linbo.log || exit 1
+  linbo_format "$cache" || exit 1
 fi
-linbo_mountcache "$cache" || exit 1
+linbo_mountcache &> /dev/null "$cache" || exit 1
 cd /cache
 
 # clean up obsolete image files
 images="$(images_startconf)"
-for img in *.qcow2 *.cloop; do
+for img in *.qcow2; do
   [ -e "$img" ] || continue
   found=0
   for uimg in $images; do
@@ -59,7 +60,7 @@ for img in *.qcow2 *.cloop; do
     fi
   done
   if [ "$found" = "0" ]; then
-    echo "Removing related image files of ${img%%.*}." | tee -a /tmp/image.log
+    echo "Removing related image files of ${img%%.*}."
     rm -f "${img%%.*}".*
   fi
 done
@@ -68,12 +69,13 @@ done
 for img in $images; do
   if [ -n "$img" ]; then
     linbo_download_image "$img" "$downloadtype" || exit 1
+    linbo_download_image "${img/.qcow2/.qdiff}" "$downloadtype"
   fi
 done
 
 # linbo & gui update
 rm -f /tmp/.update.done
-linbo_update || exit 1
-linbo_update_gui || exit 1
+linbo_update &> /dev/null || exit 1
+linbo_update_gui &> /dev/null || exit 1
 
 exit 0

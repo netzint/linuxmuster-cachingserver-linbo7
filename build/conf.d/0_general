@@ -1,14 +1,11 @@
 # build.conf
 # general environment variables
 # thomas@linuxmuster.net
-# 20231202
+# 20250325
 #
 
 # must be buildroot
 BUILDROOT="$(pwd)"
-
-# download address of remote cache
-REMOTE_CACHE="https://download.linuxmuster.net/dev/linbo-build-cache"
 
 # dirs relative to buildroot
 BUILDDIR="$BUILDROOT/build"
@@ -42,6 +39,10 @@ KRNLINDEX="$SRC/kernel.org"
 # initramfs file used during kernel build
 INITRAMFS_KERNEL="$BUILDINITD/00_basic"
 
-# compiler
-JOBS=$(( $(grep ^processor /proc/cpuinfo | tail -1 | awk '{print $3}') + 1 ))
+# compiler jobs, use env variable DISTCC_JOBS if set
+if [ -n "$DISTCC_JOBS" ]; then
+    JOBS="$DISTCC_JOBS"
+else
+    JOBS=$(( $(grep ^processor /proc/cpuinfo | tail -1 | awk '{print $3}') + 1 ))
+fi
 [ -n $JOBS ] && J_OPT="-j $JOBS"

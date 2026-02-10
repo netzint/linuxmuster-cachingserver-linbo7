@@ -2,11 +2,11 @@
 
 <img src="https://raw.githubusercontent.com/linuxmuster/linuxmuster-artwork/master/linbo/linbo_logo_small.svg" alt="linbo icon" width="200"/>
 
-# linuxmuster-linbo7 (next generation)
+# linuxmuster-linbo7
  is the free and opensource imaging solution for linuxmuster.net 7. It handles Windows 10 (TM) and Linux 64bit operating systems. Via TFTP and Grub's PXE implementation it boots a small linux system (linbofs) with a [gui](https://github.com/linuxmuster/linuxmuster-linbo-gui), which can manage all the imaging tasks on the client. Console tools are also available to manage clients and imaging remotely via the server.
 
  ## Features
- * Different kernel versions available (5.15.\*, 6.1.\* & 6.9.\*).
+ * Different kernel versions available (6.1.\*, 6.12.\* & 6.16.\*).
  * qcow2 image format.
  * Differential images.
  * Complete [refactoring of linbo_cmd](https://github.com/linuxmuster/linuxmuster-linbo7/issues/72).
@@ -81,14 +81,20 @@ Note:
 ## LINBO kernel parameters
 Parameter  |  Description
 --|--
-`forcegrub`  |  Forces grub boot on uefi systems (in case of uefi boot issues).
-`noefibootmgr`  |  Skips providing the EFI boot files and boot entries (in case of uefi boot issues).
+`debug`  |  Boots LINBO into a debug shell, no gui will be started.
+`dhcpretry=<n>`  |  Retry time in seconds to get an ip address (default 3).
+`dhcpretry_wifi=<n>`  |  Retry time to get an ip address over wifi. If not set the `dhcpretry` value will be used.
+`efipxe`  |  Forces the efi bootorder to boot pxe first.
+`forcegrub`  |  Forces grub boot with windows uefi systems (in case of uefi boot issues).
+`linbocmd=cmd1,cmd2,...`  |  Provide [linbo-remote](https://github.com/linuxmuster/linuxmuster-linbo7/blob/main/README.md#linbo-remote) commands to be processed during boot.
 `loadmodules=mod1,mod2,...`  |  List of kernel modules to load on boot.
+`noefibootmgr`  |  Skips providing the UEFI boot files and entries, if you need to organize them yourself or in case of boot issues.
+`nogui`  |  Does not start linbo_gui, provides a [nogui mode](https://github.com/linuxmuster/linuxmuster-linbo7?tab=readme-ov-file#nogui-mode) with a simple text console menu.
+`nomenu`  |  Suppresses the console menu in [nogui mode](https://github.com/linuxmuster/linuxmuster-linbo7?tab=readme-ov-file#nogui-mode) to provide a remote only mode.
+`nowarmstart`  |  Suppresses linbo warmstart after downloading a new linbo kernel from the server (in case warmstart causes problems). Note: The old parameter `warmstart=no` is still functional for compatibility reasons.
+`restoremode`  |  Allows to control the writing performance of qemu-img when restoring whole partitions according to certain storage hardware. `restoremode=dd` uses the dd mode of qemu-img and may improve the writing performance to nvme disks. `restoremode=ooo` uses the out-of-order mode of qemu-img. This option may improve performance with other raw block devices.
 `quiet`  |  Suppresses kernel boot messages.
 `splash`  |  Displays graphical splash screen at boot time. Without this parameter, only text is displayed on the console at boot time.
-`nogui`  |  Does not start linbo_gui (for debugging purposes), console only mode.
-`nowarmstart`  |  Suppresses linbo warmstart after downloading a new linbo kernel from the server (in case warmstart causes problems). Note: The old parameter `warmstart=no` is still functional for compatibility reasons.
-`restoremode`  |  Allows to control the writing performance of qemu-img when restoring whole partitions according to certain storage hardware. `restoremode=dd` uses the dd mode of qemu-img and may improve the writing performance to certain nvme disks. `restoremode=ooo` uses the out-of-order mode of qemu-img. This option may improve performance with other raw block devices.
 `vncserver`  |  Starts the LINBO builtin framebuffer vnc server on boot. The service listens on port 9999 and allows access only from the linuxmuster server ip. So if you want to access the vnc server from your pc or laptop you have to create a ssh tunnel (`ssh -L 9999:<linbo client lan address>:9999 root@<serverip>`). Then you are able to access the LINBO gui with a vncviewer (`vncviewer localhost:9999`).
 
 ## Improved LINBO server scripts
@@ -230,9 +236,11 @@ Note:
  * Creates an ISO file under `/srv/linbo/linbo.iso` that allows you to create a bootable Linbo USB stick.
  * Allows to trigger custom actions on the server after `update-linbofs` has done it's job. Therefore you place a corresponding script in the directory `/var/lib/linuxmuster/hooks/update-linbofs.post.d`. Don't forget to make the script executable.
 
-## Improved LINBO client shell
+## Improved LINBO client
 
-The improved LINBO client shell not only presents a new login prompt
+### The shell
+
+The improved client shell not only presents a new login prompt
 ```
 Welcome to
  _      _____ _   _ ____   ____
@@ -303,18 +311,42 @@ autopartition="no"
 autoformat="no"
 autoinitcache="no"
 downloadtype="torrent"
-guidisabled="no"
-theme="test_theme"
-useminimallayout="no"
+backgroundfontcolor="white"
+consolefontcolorstdout="lightgreen"
+consolefontcolorstderr="orange"
 locale="de-de"
-systemtype="efi64"12
 kerneloptions="quiet splash forcegrub"
 icons="win10.svg ubuntu.svg"
 ```
  This makes the LINBO client shell more powerful than ever. For more details please take a look at [#72](https://github.com/linuxmuster/linuxmuster-linbo7/issues/72).
 
+ ### Nogui mode
+
+With the LINBO kernel parameter `nogui` (see above) you get a cpu saving alternative for all use cases where a graphical user interface is not required or desired. A simple text menu will be presented at the end of the LINBO boot process:
+```
+----------------------------------------------
+ Console boot menu of group tuxwin
+----------------------------------------------
+ [1] Start Windows
+ [2] Sync & start Windows
+ [3] New & start Windows
+ [4] Start Debian
+ [5] Sync & start Debian
+ [6] New & start Debian
+----------------------------------------------
+ [C] Console
+ [R] Reboot
+ [S] Shutdown
+----------------------------------------------
+```
+Note:
+* To access the console the LINBO password has to be entered. After login a tmux session is started, that can be closed with `exit`.
+* If you use the `nomenu` parameter additionally the menu will be suppressed, so LINBO can only be remote controlled.
+* Any autostart entries in the group's start.conf are processed as usual.
+* Boot entries are created according to start.conf enabled buttons.
+
 ## Adding firmware
-From Linbo 4.2.0 there is a configuration file `/etc/linuxmuster/linbo/firmware` which can be used to integrate supplemental firmware files into the Linbo filesystem. Here is an example:
+Starting with Linbo 4.2.0 there is a configuration file `LINBOSYSDIR/firmware` which can be used to integrate supplemental firmware files into the Linbo filesystem. Here is an example:
 ```
 # /etc/linuxmuster/linbo/firmware
 
@@ -322,12 +354,12 @@ From Linbo 4.2.0 there is a configuration file `/etc/linuxmuster/linbo/firmware`
 rtl_nic
 
 # Realtek RTL8821AE wifi firmware (single file)
-rtlwifi/rtl8821aefw.bin
+rtl8821aefw.bin
 
 # Intel Wi-Fi 6 AX200 firmware (single file)
 iwlwifi-cc-a0-77.ucode
 ```
-You can enter files or whole directories, one per line. The firmware files are taken from the linux-firmware package, which is installed on the server per default. Note that the path to the firmware must be specified relative to /lib/firmware.
+You can enter file or directory names, one per line. The firmware files are taken from the linux-firmware package or are downloaded from kernel.org, if not found locally. Note that the path to the firmware must be specified relative to /lib/firmware.
 Examine the output of `dmesg` on the Linbo client to get infos about missing firmware:
 ```
 nb-01: ~ # dmesg | grep firmware
@@ -335,7 +367,11 @@ i915 0000:00:02.0: Direct firmware load for i915/kbl_dmc_ver1_04.bin failed with
 i915 0000:00:02.0: [drm] Failed to load DMC firmware i915/kbl_dmc_ver1_04.bin. Disabling runtime power management.
 i915 0000:00:02.0: [drm] DMC firmware homepage: https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/tree/i915
 ```
-In this case you have to add the line "i915/kbl_dmc_ver1_04.bin" to the firmware configuration file. Finally you have to invoke `update-linbofs` on the server terminal to add the firmware file to the linbofs archive.
+In this case simply add the firmware filename "kbl_dmc_ver1_04.bin" to the firmware configuration file. Finally you have to invoke `update-linbofs` on the server terminal to add the firmware file to the linbofs archive.
+
+Starting with Linbo version 4.3.30, `update-linbofs` parses the Linbo host log files (LINBOLOGDIR/*_linbo.log) for indications of missing firmware and automatically adds them to the Linbo file system.
+
+All firmware files found are cached in their latest version under LINBOCACHEDIR/firmware.
 
 Note: If loaded wifi firmware leads to a non functional wifi adapter within a warm booted linux os, switch off warmstart by using the `nowarmstart` kernel option (see above).
 

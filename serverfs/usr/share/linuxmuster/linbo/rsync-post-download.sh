@@ -2,11 +2,11 @@
 #
 # Post-Download script for rsync/LINBO
 # thomas@linuxmuster.net
-# 20231122
+# 20250418
 #
 
 # read in paedml specific environment
-source /usr/share/linuxmuster/linbo/helperfunctions.sh || exit 1
+source /usr/share/linuxmuster/helperfunctions.sh || exit 1
 
 # Debug
 LOGFILE="$LINBOLOGDIR/rsync-post-download.log"
@@ -99,12 +99,6 @@ case "$EXT" in
       echo "Removing $FILE."
       rm -f "$FILE"
     fi
-  ;;
-
-  # handle lmn7* start.conf request
-  start-conf)
-    echo "Removing temporary $FILE."
-    rm -f "$FILE"
   ;;
 
   *) ;;

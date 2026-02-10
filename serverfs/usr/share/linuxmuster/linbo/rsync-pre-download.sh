@@ -2,11 +2,11 @@
 #
 # Pre-Download script for rsync/LINBO
 # thomas@linuxmuster.net
-# 20240720
+# 20250418
 #
 
 # read in linuxmuster specific environment
-source /usr/share/linuxmuster/linbo/helperfunctions.sh || exit 1
+source /usr/share/linuxmuster/helperfunctions.sh || exit 1
 
 # Debug
 LOGFILE="$RSYNC_MODULE_PATH/log/rsync-pre-download.log"
@@ -49,8 +49,6 @@ case $EXT in
   # handle machine account password
   macct)
     url="--url=/var/lib/samba/private/sam.ldb"
-    LDBSEARCH="$(which ldbsearch) $url"
-    LDBMODIFY="$(which ldbmodify) $url"
     # old version: image's macct file resides in LINBODIR
     imagemacct_old="$FILE"
     # new version: image's macct file resides in subdirs below LINBODIR/images
@@ -78,7 +76,7 @@ case $EXT in
           ldif="/var/tmp/${compname}_macct.$$"
           ldbopts="--nosync --verbose --controls=relax:0 --controls=local_oid:1.3.6.1.4.1.7165.4.3.7:0 --controls=local_oid:1.3.6.1.4.1.7165.4.3.12:0"
           sed -e "s|@@dn@@|$dn|" "$imagemacct" > "$ldif"
-          $LDBMODIFY $ldbopts "$ldif"
+          ldbmodify "$url" $ldbopts "$ldif"
           rm -f "$ldif"
         else
           echo "Cannot determine DN of $compname! Aborting!"
@@ -91,8 +89,8 @@ case $EXT in
   # fetch logfiles from client
   log|status|gz)
     targetfile="$LINBOLOGDIR/${RSYNC_HOST_NAME%%.*}_$(basename "$FILE")"
-    sourcefile="$(echo "$FILE" | sed -e "s|$LINBODIR||")"
-    echo "Upload request for $FILE."
+    sourcefile="$(echo "$FILE" | sed -e "s|$LINBODIR||" | sed -e "s|//|/|")"
+    echo "Upload request for $FILE: $sourcefile -> $targetfile."
     linbo-scp -v "${RSYNC_HOST_ADDR}:$sourcefile" "$FILE" || RC="1"
     if [ -s "$FILE" ]; then
       if [ "$EXT" = "log" ]; then
@@ -101,7 +99,7 @@ case $EXT in
         cp "$FILE" "$targetfile"
       fi
       rm -f "$FILE"
-      touch "$FILE"
+      #touch "$FILE"
     fi
   ;;
 
@@ -173,18 +171,6 @@ case $EXT in
     linbo_kopts="$(grep -iw ^kerneloptions "$startconf" | awk -F\= '{print $2}' | awk -F\# '{print $1}' | head -$nr | tail -1 | awk '{$1=$1};1')"
     append="$linbo_kopts localboot"
     sed -e "s|linux \$linbo_kernel .*|linux \$linbo_kernel $append|g" "$grubcfg_tpl" > "$FILE"
-  ;;
-
-  # handle lmn71 start.conf request
-  conf_*)
-    mkdir -p "$LINBODIR/tmp"
-    group="$(get_hostgroup "$compname")"
-    startconf="$LINBODIR/start.conf.$group"
-    if [ -n "$group" -a -s "$startconf" ]; then
-      cp "$startconf" "$FILE"
-    else
-      cp -L "$LINBODIR/start.conf" "$FILE"
-    fi
   ;;
 
 esac

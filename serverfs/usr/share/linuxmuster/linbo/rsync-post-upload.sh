@@ -1,11 +1,11 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #
 # thomas@linuxmuster.net
-# 20230809
+# 20251104
 #
 
 # read in linuxmuster specific environment
-source /usr/share/linuxmuster/linbo/helperfunctions.sh || exit 1
+source /usr/share/linuxmuster/helperfunctions.sh || exit 1
 
 # where to place the temporary image backup
 BAKTMP="$LINBOIMGDIR/tmp"
@@ -120,8 +120,8 @@ case "$EXT" in
         suppcredentials="$(echo $LDBRESULT | jq -r '.data.supplementalcredentials')"
 
         template="$LINBOTPLDIR/machineacct"
-        imagemacct="$IMGDIR/${BASENAME}.macct"
-        sed -e "s|@@unicodepwd@@|$unicodepwd|" -e "s|@@suppcredentials@@|$suppcredentials|" "$template" > "$imagemacct"
+        sed -e "s|@@unicodepwd@@|$unicodepwd|" \
+          -e "s|@@suppcredentials@@|$suppcredentials|" "$template" > "$imagemacct"
         chmod 600 "$imagemacct"
         # remove obsolete macct file if present
         rm -f "$IMGDIR/${BASE}.macct"

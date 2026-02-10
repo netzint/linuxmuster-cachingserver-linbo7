@@ -1,3 +1,264 @@
+linuxmuster-linbo7 (4.3.31-0) lmn73; urgency=low
+
+  * fix error handling in case of not existing firmware configuration and logs (2491143).
+
+ -- Thomas Schmitt <thomas@linuxmuster.net>  Mon, 12 Jan 2026 15:53:10 +0100
+
+linuxmuster-linbo7 (4.3.30-0) lmn73; urgency=low
+
+  * add dell x86 platform drivers to stable kernel config (#134, 9641cd5).
+  * switch to stable kernel version 6.18.* (#134, 7523e63).
+  * make number of kernel build jobs configurable via DISTCC_JOBS environment variable (c153227).
+  * r8168 module target dir fix (528c47c).
+  * add iommu feature to stable kernel config to support dell pro 16 laptops (#134, 65ac32c).
+  * update longterm kernel to 6.12.64 (#134, a9f2250).
+  * update legacy kernel to 6.1.159 (#134, a9f2250).
+  * add zstd to package depends (53f6cc2).
+  * firmware handling improvements in update-linbofs (a6b798d, 94fb4af, 6c47dfc).
+
+ -- Thomas Schmitt <thomas@linuxmuster.net>  Mon, 12 Jan 2026 15:29:43 +0100
+
+linuxmuster-linbo7 (4.3.29-0) lmn73; urgency=low
+
+  * linbo-remote disablegui fix (5ebf98b).
+
+ -- Thomas Schmitt <thomas@linuxmuster.net>  Tue, 11 Nov 2025 14:53:24 +0100
+
+linuxmuster-linbo7 (4.3.28-0) lmn73; urgency=low
+
+  * linbo-remote noauto fix (083b973).
+  * update-linbofs locale fix (43daaa2).
+  * Fix #143 linbo_readfile prints filename (bb702ac).
+
+ -- Thomas Schmitt <thomas@linuxmuster.net>  Mon, 10 Nov 2025 16:08:44 +0100
+
+linuxmuster-linbo7 (4.3.27-0) lmn73; urgency=low
+
+  * fix #143: Linbo cmd readfile/writefile not working anymore.
+
+ -- Thomas Schmitt <thomas@linuxmuster.net>  Sun, 09 Nov 2025 13:48:01 +0100
+
+linuxmuster-linbo7 (4.3.26-1) lmn73; urgency=low
+
+  * kernel updates: 6.1.158, 6.12.57 & 6.17.7 (#134).
+  * fix rw qemu-nbd connection to image file (0e75b6c).
+  * add hostname to hosts file when syncing a linux system (4b23872).
+  * minor code refactor in rsync scripts (9648d69).
+  * fix rsync options for extended attributes (143d961).
+  * add Blair's Windows Imaging Preparation Script (c9f755a).
+
+ -- Thomas Schmitt <thomas@linuxmuster.net>  Sat, 08 Nov 2025 17:40:25 +0100
+
+linuxmuster-linbo7 (4.3.25-0) lmn73; urgency=low
+
+  * fix linbocmd kernel option (345d6c7).
+  * redirect vncserver output to linbo.log (e64a725).
+  * nogui mode improvements: create menu entries according to start.conf,
+    add nomenu kernel option to be able to suppress console menu (feb0efe).
+  * kernel updates: 6.1.153, 6.12.48 & 6.16.8 (#134, ea94e78).
+
+ -- Thomas Schmitt <thomas@linuxmuster.net>  Wed, 24 Sep 2025 15:03:41 +0200
+
+linuxmuster-linbo7 (4.3.24-0) lmn73; urgency=low
+
+  * nogui mode improvements (372ef5d, 978c57d, 98f2161).
+  * add tmux to linbofs (ba2ebef).
+  * linbo_readfile: improved error handling (6582e4f).
+  * better linbofs locale support (f40fbf4).
+  * update win11.global.reg (bf0b4a5, 0841de2).
+  * harvest-app.sh: avoid archving of libs which are already in linbofs (f623f16).
+
+ -- Thomas Schmitt <thomas@linuxmuster.net>  Tue, 16 Sep 2025 20:10:03 +0200
+
+linuxmuster-linbo7 (4.3.23-0) lmn73; urgency=low
+
+  * kernel updates: 6.1.152, 6.12.47 & 6.16.7 (#134, 00f318d).
+  * fix broken description during image creation in linbo_gui (253d418).
+  * fix gui_ctl in case of linbo was started with nogui parameter (051b351).
+
+ -- Thomas Schmitt <thomas@linuxmuster.net>  Fri, 12 Sep 2025 10:43:51 +0200
+
+linuxmuster-linbo7 (4.3.22-0) lmn73; urgency=low
+
+  * kernel updates: 6.1.150, 6.12.44 & 6.16.4 (#134).
+  * use linux images on efi and bios systems equally (33835e2).
+
+ -- Thomas Schmitt <thomas@linuxmuster.net>  Thu, 04 Sep 2025 19:40:22 +0200
+
+linuxmuster-linbo7 (4.3.21-0) lmn73; urgency=low
+
+  * fix #139: Different dhcp-retries on lan and wifi interface.
+  * Merge pull request #141 from amolani/patch-1, add example win11.global.reg (78229b8, b4175ef).
+  * increase verbosity of linbo-remote (e9a363c).
+  * kernel updates (#134).
+
+ -- Thomas Schmitt <thomas@linuxmuster.net>  Sat, 16 Aug 2025 16:53:10 +0200
+
+linuxmuster-linbo7 (4.3.20-0) lmn73; urgency=low
+
+  * improve uniform device names replacement in downloaded start.conf (#126).
+  * remove deprecated grub module linuxefi from config (5bd6a63).
+  * efiboot fixes and improvements (19ffe74):
+    - fix efiboot entry for linux systems.
+    - rename linbo efiboot entry from grub to LINBO.
+    - add efipxe kernel parameter to force efi bootorder to boot pxe first.
+
+ -- Thomas Schmitt <thomas@linuxmuster.net>  Fri, 08 Aug 2025 22:21:08 +0200
+
+linuxmuster-linbo7 (4.3.19-0) lmn73; urgency=low
+
+  * fix partitioning with uniform device names (#126).
+  * kernel updates (#134).
+
+ -- Thomas Schmitt <thomas@linuxmuster.net>  Fri, 01 Aug 2025 18:31:21 +0200
+
+linuxmuster-linbo7 (4.3.18-0) lmn73; urgency=low
+
+  * fix broken device uuid query and restore in conjunction with windows imaging (f89184b).
+
+ -- Thomas Schmitt <thomas@linuxmuster.net>  Thu, 17 Jul 2025 16:41:41 +0200
+
+linuxmuster-linbo7 (4.3.17-0) lmn73; urgency=low
+
+  * enable zstd compressed firmware and wifi in longterm and legacy kernels (917f194).
+  * delete old efi label before creating new one (45f4944).
+
+ -- Thomas Schmitt <thomas@linuxmuster.net>  Wed, 16 Jul 2025 16:56:38 +0200
+
+linuxmuster-linbo7 (4.3.16-0) lmn73; urgency=low
+
+  * fix start.conf split in offline mode (6d23867).
+
+ -- Thomas Schmitt <thomas@linuxmuster.net>  Tue, 15 Jul 2025 15:29:44 +0200
+
+linuxmuster-linbo7 (4.3.15-0) lmn73; urgency=low
+
+  * kernel updates (#134).
+  * further boot fixes concerning to uniform block device names (#126).
+  * fix evaluation of findiso kernel parameter (#136).
+
+ -- Thomas Schmitt <thomas@linuxmuster.net>  Mon, 14 Jul 2025 19:54:57 +0200
+
+linuxmuster-linbo7 (4.3.14-0) lmn73; urgency=low
+
+  * fix windows efi boot in case of uniform block device names (#126).
+
+ -- Thomas Schmitt <thomas@linuxmuster.net>  Tue, 08 Jul 2025 14:38:37 +0200
+
+linuxmuster-linbo7 (4.3.13-0) lmn73; urgency=low
+
+  * kernel updates (#134).
+  * fix efi boot in case of uniform block device names (#126).
+  * add start.conf example for uniform block device names (#126).
+  * skip build of r8812 module for stable kernel (ea83f28).
+  * skip patching of r8125 module source for stable kernel (b43515f).
+
+ -- Thomas Schmitt <thomas@linuxmuster.net>  Mon, 07 Jul 2025 21:29:01 +0200
+
+linuxmuster-linbo7 (4.3.12-0) lmn73; urgency=low
+
+  * fix linbofs libm.so.6 (ff0f39b).
+  * update prestart and postsync script examples (a7fee55).
+  * fix adding supplemental files in harvest-app.sh (76677d9).
+
+ -- Thomas Schmitt <thomas@linuxmuster.net>  Wed, 14 May 2025 13:45:11 +0200
+
+linuxmuster-linbo7 (4.3.11-0) lmn73; urgency=low
+
+  * implement liveboot from isofile (#136).
+  * kernel updates (#134).
+
+ -- Thomas Schmitt <thomas@linuxmuster.net>  Sat, 10 May 2025 15:37:24 +0200
+
+linuxmuster-linbo7 (4.3.10-0) lmn73; urgency=low
+
+  * improve linbo client logging (#123).
+  * fix missing gdisk in linbofs (23b2dfc).
+
+ -- Thomas Schmitt <thomas@linuxmuster.net>  Sun, 27 Apr 2025 19:08:00 +0200
+
+linuxmuster-linbo7 (4.3.9-0) lmn73; urgency=low
+
+  * fetch linbo client's hardware info only once (a1636e0).
+  * rsync download scripts code clean up (0743a63).
+  * linbofs shell functions code clean up (26397bb).
+  * linbo_size improvements (e85c2e3).
+  * kernel updates (#134).
+  * update-linbofs: add current locale and support for zst compressed firmware (8766c64).
+  * harvest-app.sh: add ability to process supplemental files (79ebf12).
+  * improve linbo client logging (#123).
+
+ -- Thomas Schmitt <thomas@linuxmuster.net>  Sat, 26 Apr 2025 20:11:53 +0200
+
+linuxmuster-linbo7 (4.3.8-0) lmn73; urgency=low
+
+  * removal of the unecessary server option (#132).
+  * automatic image seeding (#127).
+  * fix initcache does not download qdiff (124f375).
+  * workaround for linbo_gui's wrong invokation of linbo_cmd size (9aeb4f5).
+
+ -- Thomas Schmitt <thomas@linuxmuster.net>  Thu, 17 Apr 2025 20:37:36 +0200
+
+linuxmuster-linbo7 (4.3.7-0) lmn73; urgency=low
+
+  * patch_fstab fix (#126, f3f7127).
+  * get_realdev fix (#126, 1c22919).
+  * warmstart fix (#126, 35b024e).
+  * remove systemtype (#131) from
+    - start.conf examples (f3b678b),
+    - linbofs shell_functions (4a6d87e),
+    - linbofs linbo_update (5ed2f6c),
+    - linbofs linbo_partition (1b1860e).
+  * kernel updates (b2c383c).
+  * fix period in image's basename (f92a666).
+
+ -- Thomas Schmitt <thomas@linuxmuster.net>  Tue, 15 Apr 2025 10:45:22 +0200
+
+linuxmuster-linbo7 (4.3.6-0) lmn73; urgency=low
+
+  * fix linbofs path for libstdc++.so.6 (bc74f24).
+  * improve linbo client's performance in kvm/qemu virtual environments (#130).
+  * replace broken gdisk with ubuntu's fdisk (c4edbde, 94783f6).
+  * Uniform block device names (#126).
+
+ -- Thomas Schmitt <thomas@linuxmuster.net>  Sun, 06 Apr 2025 20:09:53 +0200
+
+linuxmuster-linbo7 (4.3.5-0) lmn73; urgency=low
+
+  * kernel updates: longterm 6.6.85, stable 6.13.9 (b238242).
+
+ -- Thomas Schmitt <thomas@linuxmuster.net>  Wed, 02 Apr 2025 14:33:40 +0200
+
+linuxmuster-linbo7 (4.3.4-0) lmn73; urgency=low
+
+  * kernel updates: stable to 6.13.8, longterm to 6.6.84 (569a948).
+  * move helperfunctions.sh to linuxmuster-common package (#156).
+  * fix all references to moved common files (#156).
+
+ -- Thomas Schmitt <thomas@linuxmuster.net>  Wed, 02 Apr 2025 10:38:47 +0200
+
+linuxmuster-linbo7 (4.3.3-1) lmn73; urgency=low
+
+  * rebuild for lmn73.
+
+ -- Thomas Schmitt <thomas@linuxmuster.net>  Wed, 26 Mar 2025 20:40:08 +0100
+
+linuxmuster-linbo7 (4.3.3-0) lmn72-testing; urgency=low
+
+  * do not build r8125 module if modules archive already exists (e172416).
+  * gui_ctl fixes (c211e63).
+  * add nosplit option to gui_ctl (547ee62).
+  * kernel updates (708324b, 8f29c81).
+  * fix missing dependency on cpio (#124).
+  * improve linbo client logging (#123).
+  * add lsblk to linbofs (#126).
+  * Merge pull request #128 from hermanntoast/add-no-svram,
+  * switch to ubuntu 24.04 buld environment (#129).
+  * remove obsolete linbo remote cache definition from build config (7f70cfd).
+  * update busybox to 1.37.0 (6109c37).
+
+ -- Thomas Schmitt <thomas@linuxmuster.net>  Sat, 22 Mar 2025 11:42:53 +0100
+
 linuxmuster-cachingserver-linbo7 (4.2.15-0) lmn72-testing; urgency=low
 
   * Merge changes from linuxmuster-linbo7

@@ -4,7 +4,7 @@
 # (C) Klaus Knopper 2007
 # License: GPL V2
 # thomas@linuxmuster.net
-# 20240720
+# 20250924
 #
 
 # Reset fb color mode
@@ -23,19 +23,14 @@ if [ -x "/sbin/plymouthd" -a -n "$SPLASH" ]; then
   fi
 fi
 
-# send clients hwinfo
-[ -s /tmp/hwinfo.gz ] && sendlog /tmp/hwinfo.gz
+# update & extract linbo_gui
+linbo_update_gui &> /dev/null
 
-# collect firmware infos
-dmesg | grep firmware > /tmp/firmware.log
-
-# update & extract linbo_gui, disabled since there is no compatible version for 22.04
-linbo_update_gui | tee -a /tmp/linbo.log
-sendlog
+# quit plymouth
+plymouth quit
 
 # DEBUG mode
 if [ -n "$DEBUG" ]; then
-  plymouth quit
   for item in /tmp/linbo_gui.*.log; do
     if [ -s "$item" ]; then
       echo "There is a logfile from a previous start of linbo_gui in $item:"
@@ -46,55 +41,59 @@ if [ -n "$DEBUG" ]; then
     fi
   done
   echo "Starting DEBUG shell, leave with 'exit'."
+  sendlog
   ash >/dev/tty1 2>&1 < /dev/tty1
-fi
 
 # Start LINBO GUI
-if [ -s /usr/bin/linbo_gui ]; then
+elif [ -s /usr/bin/linbo_gui ]; then
 
-  plymouth quit &> /dev/null
+  echo "### $timestamp linbo_gui ###"
+  sendlog
   export XKB_DEFAULT_LAYOUT=de
   /usr/bin/linbo_gui -platform linuxfb
-  sendlog
 
 else # handle missing gui problem
 
-  plymouth quit
-  if [ -n "$DEBUG" ]; then
-    echo "Starting DEBUG shell." | tee -a /tmp/linbo.log
-    ash >/dev/tty1 2>&1 < /dev/tty1
-  else
-    export myname="| Name: $HOSTNAME"
-    source /.profile
-    echo "Console boot menue of group $HOSTGROUP" | tee -a /tmp/linbo.log
-    echo "----------------------------------------" | tee -a /tmp/linbo.log
-    count=0
-    for item in /conf/os.*; do
-      [ -s "$item" ] || continue
-      name=""
-      source "$item"
-      [ -z "$name" ] && continue
-      count=$(( count + 1 ))
-      echo "[$count] Start $name" | tee -a /tmp/linbo.log
-      count=$(( count + 1 ))
-      echo "[$count] Sync & start $name" | tee -a /tmp/linbo.log
-    done
-    echo "----------------------------------------" | tee -a /tmp/linbo.log
-    echo "[R] Reboot" | tee -a /tmp/linbo.log
-    echo "[S] Shutdown" | tee -a /tmp/linbo.log
-    echo
-    sendlog
+  # autostart if requested in start.conf
+  linbo_autostart
+  clear
+  export myname="| Name: $HOSTNAME"
+  source /.profile
+
+  # print console menu
+  if [ -s /conf/menu ]; then
+    # print menu file, filter commands
+    sed 's|] .* [1-9]|]|g' /conf/menu
+    sendlog &> /dev/null
     while true; do
       answer=$(stty -icanon -echo; dd ibs=1 count=1 2>/dev/null)
       case "$answer" in
+        c|C) linbo_login ;;
         r|R) /sbin/reboot ;;
         s|S) /sbin/poweroff ;;
-        *)
+        *) # interpret the commands assigned to the menu items
           isinteger $answer || continue
-          osnr=$(($answer-$(($answer/2))))
-          if iseven $answer; then linbo_syncstart $osnr; else linbo_start $osnr; fi
+          [ -s /conf/menu ] || continue
+          menucmd="$(grep "\[$answer\]" /conf/menu | awk '{print $2, $3}')"
+          cmd="$(echo "$menucmd" | awk '{print $1}')"
+          linbocmd="linbo_${cmd}"
+          [ -z "$(which "$linbocmd")" ] && continue
+          osnr="$(echo "$menucmd" | awk '{print $2}')"
+          [ -s "/conf/os.$osnr" ] || continue
+          $linbocmd $osnr || continue
           ;;
       esac
     done
+  # no menu, message only
+  else
+    echo "----------------------------------------------"
+    echo " This LINBO client is in remote control mode."
+    echo "----------------------------------------------"
+    echo
+    while true; do
+      answer=$(stty -icanon -echo; dd ibs=1 count=1 2>/dev/null)
+      echo -n "X"
+    done
   fi
+
 fi

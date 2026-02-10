@@ -2,7 +2,7 @@
 #
 # linbo_sync
 # thomas@linuxmuster.net
-# 20240123
+# 20251108
 #
 
 
@@ -30,8 +30,8 @@ check_status(){
   local partition="$1"
   local imagefile="$2"
   local imagebase="${imagefile%%.*}"
-  echo "## $(date) : Check status of $partition using $imagefile." | tee -a /tmp/linbo.log
-  linbo_mount "$1" /mnt -r 2>> /tmp/linbo.log || return $?
+  echo "## $(date) : Check status of $partition using $imagefile."
+  linbo_mount "$1" /mnt -r || return $?
   [ -s /mnt/.linbo ] && case "$(cat /mnt/.linbo 2>/dev/null)" in *$imagebase*) RC=0 ;; esac
   umount /mnt || umount -l /mnt
   return "$RC"
@@ -43,9 +43,9 @@ check_status(){
 update_status(){
   local partition="$1"
   local imagefile="$2"
-  local imagebase="${imagefile%%.*}"
-  echo "## $(date) : Update status of $partition using $imagefile." | tee -a /tmp/linbo.log
-  linbo_mount "$1" /mnt 2>> /tmp/linbo.log || return $?
+  local imagebase="${imagefile%.*}"
+  echo "## $(date) : Update status of $partition using $imagefile."
+  linbo_mount "$1" /mnt || return $?
   echo "$imagebase" > /mnt/.linbo
   #sync; sync; sleep 1
   umount /mnt || umount -l /mnt
@@ -56,24 +56,24 @@ update_status(){
 # differential/Synced
 # sync_image imagefile targetdev
 sync_image(){
-  echo "## $(date) : Starting sync of $1 to $2." | tee -a /tmp/image.log
+  echo "## $(date) : Starting sync of $1 to $2."
   local imagefile="$1"
   local targetdev="$2"
   local RC
 
-  linbo_mount "$targetdev" /mnt | tee -a /tmp/image.log ; RC="$?"
+  linbo_mount "$targetdev" /mnt ; RC="$?"
   if [ "$RC" != "0" ]; then
     echo "Cannot mount $targetdev!"
     return "$RC"
   fi
 
-  local ROPTS="-HAa"
+  local ROPTS="-HXAa"
   [ "$(linbo_fstype "$targetdev")" = "vfat" ] && ROPTS="-rt"
   # mount qcow2 image as network block device
-  qemu-nbd -r --connect /dev/nbd0 "$imagefile" | tee -a /tmp/image.log ; RC="$?"
+  qemu-nbd --connect /dev/nbd0 "$imagefile" ; RC="$?"
   if [ "$RC" != "0" ]; then
-    echo "Connection to $imagefile failed!" | tee -a /tmp/image.log
-    qemu-nbd --disconnect /dev/nbd0 >> /tmp/image.log
+    echo "Connection to $imagefile failed!"
+    qemu-nbd --disconnect /dev/nbd0
     return "$RC"
   fi
 
@@ -81,24 +81,24 @@ sync_image(){
   sleep 3
   mkdir -p /image
   if ! linbo_mount /dev/nbd0 /image -r; then
-    echo "Mounting $imagefile failed!" | tee -a /tmp/image.log
-    qemu-nbd --disconnect /dev/nbd0 >> /tmp/image.log
+    echo "Mounting $imagefile failed!"
+    qemu-nbd --disconnect /dev/nbd0
     return "$RC"
   fi
 
   # sync image
   echo "Syncing ... please wait ..."
-  interruptible rsync --skip-compress="$RSYNC_SKIP_COMPRESS" "$ROPTS" --exclude="/.linbo" --exclude-from="/etc/rsync.exclude" --delete --delete-excluded --log-file=/tmp/image.log --log-file-format="" /image/ /mnt 2>&1 | tee -a /tmp/image.log ; RC="$?"
+  interruptible rsync --skip-compress="$RSYNC_SKIP_COMPRESS" "$ROPTS" --exclude="/.linbo" --exclude-from="/etc/rsync.exclude" --delete --delete-excluded --log-file=/tmp/linbo.log --log-file-format="" /image/ /mnt ; RC="$?"
   umount /image
   if [ "$RC" != "0" ]; then
-    echo "Image sync of $imagefile to $targetdev failed!" | tee -a /tmp/image.log
+    echo "Image sync of $imagefile to $targetdev failed!"
   fi
-  qemu-nbd --disconnect /dev/nbd0 >> /tmp/image.log
+  qemu-nbd --disconnect /dev/nbd0
 
   sync; sync; sleep 1
   umount /mnt || umount -l /mnt
   [ "$RC" = "0" ] && update_status "$2" "$1"
-  echo "## $(date) : Sync from $1 finished." | tee -a /tmp/image.log
+  echo "## $(date) : Sync from $1 finished."
   return "$RC"
 }
 
@@ -106,7 +106,7 @@ sync_image(){
 # full copy
 # cp_image imagefile targetdev
 cp_image(){
-  echo "## $(date) : Starting full restore of $2 using $1." | tee -a /tmp/image.log
+  echo "## $(date) : Starting full restore of $2 using $1."
   local RC=1
   local imagefile="$1"
   local imagetype="${imagefile##*.}"
@@ -128,20 +128,20 @@ cp_image(){
   local s1="$(get_partition_size /dev/nbd0)"
   local s2="$(get_partition_size $targetdev)"
   if [ "$s1" -gt "$s2" ] 2>/dev/null; then
-    echo "Error: $imagefile (${s1}K) is bigger than partition $targetdev (${s2}K)" >&2 | tee -a /tmp/image.log
-    qemu-nbd --disconnect /dev/nbd0 >> /tmp/image.log
+    echo "Error: $imagefile (${s1}K) is bigger than partition $targetdev (${s2}K)" >&2
+    qemu-nbd --disconnect /dev/nbd0
     return 1
   fi
 
   # restore
-  qemu-nbd --disconnect /dev/nbd0 >> /tmp/image.log
+  qemu-nbd --disconnect /dev/nbd0
   # evaluate sync mode
   case "$RESTOREMODE" in
     dd) sync_cmd="qemu-img dd -f $imagetype -O raw bs=8M if=$imagefile of=$targetdev" ;;
     ooo) sync_cmd="qemu-img convert -W -p -f $imagetype -O raw $imagefile $targetdev" ;;
     *) sync_cmd="qemu-img convert -p -f $imagetype -O raw $imagefile $targetdev" ;;
   esac
-  interruptible $sync_cmd | tee -a /tmp/image.log
+  interruptible $sync_cmd
   RC="$?"
   if [ "$RC" != "0" ]; then
     echo "Restore with $imagefile failed!"
@@ -150,24 +150,24 @@ cp_image(){
 
   # check if resize is necessary
   if [ "$s2" -gt "$s1" ]; then
-    echo "Trying to resize filesystem on $targetdev." | tee -a /tmp/image.log
+    echo "Trying to resize filesystem on $targetdev."
     local fstype="$(fstype_startconf "$targetdev")"
     case "$fstype" in
       ntfs)
-        ntfsfix -bd "$targetdev" | tee -a /tmp/image.log
-        ntfsresize -f "$targetdev" | tee -a /tmp/image.log
-        ntfsfix -bd "$targetdev" | tee -a /tmp/image.log
+        ntfsfix -bd "$targetdev"
+        ntfsresize -f "$targetdev"
+        ntfsfix -bd "$targetdev"
         ;;
       ext4)
-        e2fsck -f "$targetdev" | tee -a /tmp/image.log
-        resize2fs -f "$targetdev" | tee -a /tmp/image.log
+        e2fsck -f "$targetdev"
+        resize2fs -f "$targetdev"
         ;;
       *) ;;
     esac
   fi
 
   update_status "$targetdev" "$imagefile" ; RC="$?"
-  echo "## $(date) : Full restore from $imagefile finished." | tee -a /tmp/image.log
+  echo "## $(date) : Full restore from $imagefile finished."
   return "$RC"
 }
 
@@ -214,73 +214,46 @@ set_guid(){
     echo "Restoring disk UUID $guid of $device."
     echo -e "x\ng\n$guid\nw\nY\n" | gdisk "$device" 2>&1
   else
-    echo "Unknown device $device!" | tee -a /tmp/image.log
+    echo "Unknown device $device!"
     return 1
   fi
   blkid "$device" | grep -qi "$guid" || return 1
 }
 
 
-# patch fstab with root partition and root fstype: patch_fstab rootdev
+# patch fstab with root & efi partitions: patch_fstab rootdev
 patch_fstab(){
   echo -n "patch_fstab " ;  printargs "$@"
-  local rootdev="$1"
-  local line=""
-  local found=""
-  local fstype_mount=""
-  local fstype_fstab=""
-  local mntpnt=""
-  local changed=""
-  local rootdev_fstab=""
-  local options=""
-  local dump=""
-  local pass=""
-  local rootlabel=""
-  [ -z "$rootdev" ] && return 1
-  [ -e "$rootdev" ] || return 1
-  [ -e /tmp/fstab ] && rm -f /tmp/fstab
-  while read line; do
-    if [ -n "$line" -a "${line:0:1}" != "#" ]; then
-      mntpnt="$(echo "$line" | awk '{ print $2 }')"
-      if [ "$mntpnt" = "/" -a -z "$found" ]; then
-        found=yes
-        rootdev_fstab="$(echo "$line" | awk '{ print $1 }')"
-        [ -z "$rootdev_fstab" ] && return 1
-        fstype_fstab="$(echo "$line" | awk '{ print $3 }')"
-        [ -z "$fstype_fstab" ] && return 1
-        options="$(echo "$line" | awk '{ print $4 }')"
-        [ -z "$options" ] && return 1
-        dump="$(echo "$line" | awk '{ print $5 }')"
-        [ -z "$dump" ] && return 1
-        pass="$(echo "$line" | awk '{ print $6 }')"
-        [ -z "$pass" ] && return 1
-        # change root partition if necessary
-        echo "Patching root partition: $rootdev."
-        rootlabel="$(get_label "$rootdev")"
-        if [ -n "$rootlabel" ]; then
-          rootdev_fstab="LABEL=$rootlabel"
-        else
-          rootdev_fstab="$rootdev"
-        fi
-        line="$rootdev_fstab $mntpnt $fstype_fstab $options $dump $pass"
-        changed=yes
-        # check for changed filesytem type if partition was formatted
-        fstype_mount="$(cat /proc/mounts | grep "^$rootdev" | awk '{ print $3 }')"
-        [ -z "$fstype_mount" ] && return 1
-        if [ "$fstype_fstab" != "$fstype_mount" ]; then
-          # change filesystem
-          echo "Patching filesystem: $fstype_mount."
-          fstype_fstab="$fstype_mount"
-          line="$rootdev_fstab $mntpnt $fstype_fstab $options $dump $pass"
-          changed=yes
-        fi # fstype
-      fi # mntpnt
-    fi # line
-    echo "$line" >> /tmp/fstab
-  done </mnt/etc/fstab # reading fstab
-  if [ -n "$changed" ]; then
-    mv -f /mnt/etc/fstab /mnt/etc/fstab.bak
-    mv -f /tmp/fstab /mnt/etc
+  local fstab="/mnt/etc/fstab"
+  # get real devicename of root partition
+  local realroot
+  if [ -L "$1" ]; then
+    realroot="$(get_realdev "$1")"
+  else
+    realroot="$1"
+  fi
+  [ -b "$realroot" ] || return 1
+  # get fstab's root partition
+  local fstabroot="$(grep -v ^# "$fstab" | awk '{print $1, $2}' | grep -w / | awk '{print $1}' | tail -1)"
+  [ -z "$fstabroot" ] && return 1
+  # patch fstab with real root partition
+  if [ "$realroot" != "$fstabroot" ]; then
+    echo " $fstabroot -> $realroot"
+    sed -i "s|^$fstabroot|$realroot|g" "$fstab"
+  fi
+  # patch efi partition
+  local realefi="$(print_efipart)"
+  local fstabefi="$(grep -v ^# "$fstab" | awk '{print $1, $2}' | grep /efi | awk '{print $1}' | tail -1)"
+  # efi partition exists and there is an efi entry in fstab
+  if [ -n "$realefi" -a -n "$fstabefi" ]; then
+    sed -i "s|^$fstabefi|$realefi|g" "$fstab"
+  # efi partition exists and there is no efi entry in fstab
+  elif [ -n "$realefi" -a -z "$fstabefi" ]; then
+    echo "$realefi /boot/efi vfat defaults 0 1" >> "$fstab"
+    mkdir -p /mnt/boot/efi
+  # no efi system but efi entry in fstab
+  elif [ -z "$realefi" -a -n "$fstabefi" ]; then
+    sed -i '/\/efi/d' "$fstab"
   fi
 }
 
@@ -291,7 +264,6 @@ restore_winact(){
   [ -s  /mnt/.linbo ] && local imagename="$(cat /mnt/.linbo)"
   # if an image is not yet created do nothing
   if [ -z "$imagename" ]; then
-    echo "Skipping reactivation, system is not synchronized."
     return
   fi
 
@@ -394,7 +366,7 @@ restore(){
   echo "Unpacking: $imagefile -> $targetdev"
   check_status "$targetdev" "$imagefile" || force="force"
   if [ "$force" = "force" ]; then
-    linbo_format "$targetdev" "$fstype" "$label" | tee -a /tmp/linbo.log ; RC="$?"
+    linbo_format "$targetdev" "$fstype" "$label" ; RC="$?"
     if [ "$RC" != "0" ]; then
       echo "Formatting of $targetdev failed!"
       return "$RC"
@@ -447,10 +419,10 @@ syncl(){
   fi
 
   # begin syncing
-  echo "syncl $@" | tee -a /tmp/linbo.log
+  echo "syncl $@"
 
   # mount cache and sync
-  linbo_mountcache || return 1
+  linbo_mountcache &> /dev/null || return 1
   cd /cache
   # start syncing image
   restore "$imagefile" "$rootdev" $force ; RC="$?"
@@ -464,11 +436,11 @@ syncl(){
 
   # mount os partition
   if [ "$RC" = "0" ]; then
-    linbo_mount "$rootdev" /mnt 2>> /tmp/linbo.log ; RC="$?"
+    linbo_mount "$rootdev" /mnt ; RC="$?"
   fi
   # return on error
   if [ "$RC" != "0" ]; then
-    echo "Cannot mount $rootdev!" | tee -a /tmp/linbo.log
+    echo "Cannot mount $rootdev!"
     sendlog
     cd /
     return "$RC"
@@ -498,7 +470,7 @@ syncl(){
   if [ -n "$is_win" ]; then
 
     # do registry patching for windows systems
-    [ -s "$patchfile" ] && linbo_patch_registry "$patchfile" | tee /tmp/patch.log
+    [ -s "$patchfile" ] && linbo_patch_registry "$patchfile"
 
     # manage windows boot files
     local bcd_backup
@@ -539,16 +511,16 @@ syncl(){
     [ -e "$bsmbr" ] || bsmbr="$bootdir"/winmbr."$HOSTGROUP"
     [ -e "$bsmbr" ] || bsmbr="$bootdir"/win7mbr."$HOSTGROUP"
     if [ -e "$bsmbr" ]; then
-      echo "Restoring windows bootloader from $(basename "$bsmbr")" | tee -a /tmp/linbo.log
+      echo "Restoring windows bootloader from $(basename "$bsmbr")"
       case "$bsmbr" in
         *bsmbr.*)
-          dd if="$bsmbr" of="$disk" bs=446 count=1 2>> /tmp/linbo.log
+          dd if="$bsmbr" of="$disk" bs=446 count=1
           ;;
         *winmbr.*)
-          dd if="$bsmbr" of="$disk" bs=1 count=4 seek=440 2>> /tmp/linbo.log
+          dd if="$bsmbr" of="$disk" bs=1 count=4 seek=440
           ;;
         *win7mbr.*)
-          dd if="$bsmbr" of="$disk" bs=1 count=4 skip=440 2>> /tmp/linbo.log
+          dd if="$bsmbr" of="$disk" bs=1 count=4 skip=440
           ;;
       esac
     fi
@@ -561,13 +533,13 @@ syncl(){
       if [ -s "$gptlabel" -a ! -s /mnt/.guid.disk ]; then
         echo "Saving current gpt label."
         local gptcurrent="/tmp/gptlabel.current"
-        dd if="$disk" of="$gptcurrent" bs=512 count=34 2>> /tmp/linbo.log
-        echo "Restoring old gpt label from $(basename "$gptlabel")." | tee -a /tmp/linbo.log
-        dd if="$gptlabel" of="$disk" bs=512 count=34 2>> /tmp/linbo.log
+        dd if="$disk" of="$gptcurrent" bs=512 count=34
+        echo "Restoring old gpt label from $(basename "$gptlabel")."
+        dd if="$gptlabel" of="$disk" bs=512 count=34
         # get disk uuid from old gpt label
         print_guid "$disk" > /mnt/.guid.disk
-        echo "Restoring current gpt label." | tee -a /tmp/linbo.log
-        dd if="$gptcurrent" of="$disk" bs=512 count=34 2>> /tmp/linbo.log
+        echo "Restoring current gpt label."
+        dd if="$gptcurrent" of="$disk" bs=512 count=34
       fi
       # move old guid file for os partition in place
       [ ! -s /mnt/.guid.part -a -s "/mnt/.guid.$partname" ] && mv "/mnt/.guid.$partname" /mnt/.guid.part
@@ -579,7 +551,7 @@ syncl(){
           part) device="$rootdev" ;;
         esac
         guidfile="/mnt/.guid.$i"
-        [ -s "$guidfile" ] && set_guid "$device" "$(cat "$guidfile")" | tee -a /tmp/image.log
+        [ -s "$guidfile" ] && set_guid "$device" "$(cat "$guidfile")"
       done
     fi
 
@@ -587,7 +559,7 @@ syncl(){
     [ -e "$bootdir"/ntfs.id ] && local ntfsid="$(ls "$bootdir"/ntfs.id 2> /dev/null)"
     if [ -n "$ntfsid" -a -s "$ntfsid" ]; then
       echo "Restoring ntfs-id $(basename "$ntfsid")."
-      dd if="$ntfsid" of="$rootdev" bs=8 count=1 seek=9 2>> /tmp/linbo.log
+      dd if="$ntfsid" of="$rootdev" bs=8 count=1 seek=9
     fi
 
     # update linuxmuster-win scripts and restore windows activation
@@ -618,10 +590,18 @@ syncl(){
   #fi
 
   # hostname
-  if [ -f /mnt/etc/hostname ]; then
-    if [ -n "$HOSTNAME" ]; then
+  if [ -n "$HOSTNAME" ]; then
+    if [ -f /mnt/etc/hostname ]; then
       echo "Setting hostname -> $HOSTNAME."
       echo "$HOSTNAME" > /mnt/etc/hostname
+    fi
+    if [ -f /mnt/etc/hosts ]; then
+      local ip="127.0.1.1"
+      if grep -q ^"$ip" /mnt/etc/hosts; then
+        sed -i "s|^$ip.*|$ip\t$HOSTNAME|" /mnt/etc/hosts
+      else
+        echo -e "$ip\t$HOSTNAME" >> /mnt/etc/hosts
+      fi
     fi
   fi
 
@@ -680,7 +660,7 @@ syncr(){
   if remote_cache "$cache"; then
     echo "Cache $cache is not local, skipping remote image update."
   else
-    linbo_mountcache || return 1
+    linbo_mountcache &> /dev/null || return 1
     cd /cache
 
     # try to download baseimage
@@ -703,6 +683,7 @@ syncr(){
 
 # get environment
 source /usr/share/linbo/shell_functions
+echo "### $timestamp $(basename "$0") $@ ###"
 
 # check parameters
 if isinteger "$1"; then
