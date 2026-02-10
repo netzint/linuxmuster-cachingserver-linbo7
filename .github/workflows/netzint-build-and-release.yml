@@ -14,16 +14,58 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
-      - name: Install dependencies
-        run: sudo apt update && sudo apt install debhelper -y
+      - name: Enable deb-src repositories
+        run: |
+          sudo sed -i 's/^Types: deb$/Types: deb deb-src/' /etc/apt/sources.list.d/ubuntu.sources
 
-      - name: Install dependencies
+      - name: Restore build cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            cache
+            src
+          key: build-${{ hashFiles('build/conf.d/*', 'build/config/**', 'build/run.d/*', 'build/patches/**') }}
+          restore-keys: |
+            build-
+
+      - name: Restore ccache
+        uses: actions/cache@v4
+        with:
+          path: ~/.ccache
+          key: ccache-${{ hashFiles('build/conf.d/2_kernel-versions', 'build/config/kernel-*') }}
+          restore-keys: |
+            ccache-
+
+      - name: Install build tools
+        run: sudo apt-get update && sudo apt-get install -y debhelper
+
+      - name: Install build dependencies
         run: ./get-depends.sh
+
+      - name: Configure ccache
+        run: |
+          echo "/usr/lib/ccache" >> "$GITHUB_PATH"
+          ccache --max-size=3G
+          ccache --zero-stats
 
       - name: Build
         run: ./buildpackage.sh
+
+      - name: Show ccache stats
+        if: always()
+        run: ccache --show-stats || true
+
+      - name: Shrink build cache
+        if: always()
+        run: |
+          # Remove kernel object files to keep cache size within GitHub's 10GB repo limit.
+          # The build scripts only check for bzImage, .config, linbo64 and lib/modules/
+          # to decide whether to skip recompilation, so .o files are not needed in cache.
+          find src/*/linux-*/ \( -name "*.o" -o -name "*.cmd" -o -name "*.d" \
+            -o -name "*.mod" -o -name "*.mod.c" -o -name ".tmp_*" \
+            -o -name "*.tmp" -o -name "*.order" \) -delete 2>/dev/null || true
 
       - name: Copy artifacts
         run: mkdir archives && cp ../*.* ./archives
@@ -33,7 +75,7 @@ jobs:
         with:
           name: deb-packages
           path: archives/*
-        
+
   github-release:
     needs: deb-package
     if: github.event_name == 'push' && contains(github.ref, 'refs/tags/')
@@ -55,7 +97,7 @@ jobs:
           release_name: Release ${{ github.ref }}
           draft: false
           prerelease: false
-          
+
       - name: Upload Release Assets
         id: upload-release-assets
         uses: dwenegar/upload-release-assets@v1
