@@ -2,6 +2,12 @@ linuxmuster-linbo7 (4.3.31-0) lmn73; urgency=low
 
   * fix error handling in case of not existing firmware configuration and logs (2491143).
 
+ -- Lukas Lukic-Spitznagel <lukas.spitznagel@netzint.de>  Thu, 10 Feb 2026 15:25:10 +0100
+
+linuxmuster-linbo7 (4.3.31-0) lmn73; urgency=low
+
+  * fix error handling in case of not existing firmware configuration and logs (2491143).
+
  -- Thomas Schmitt <thomas@linuxmuster.net>  Mon, 12 Jan 2026 15:53:10 +0100
 
 linuxmuster-linbo7 (4.3.30-0) lmn73; urgency=low
